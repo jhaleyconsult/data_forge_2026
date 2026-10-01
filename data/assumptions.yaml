@@ -1,0 +1,90 @@
+occupied_bed_history:
+  target_hospital: "VCU Medical Center"
+  staffed_beds: 905
+  annual_patient_days: 247208
+  reference_average_daily_census: 676.818617
+  calibration_year: 2024
+  # ASSUMPTION: VCU follows Virginia's historical monthly occupancy pattern.
+  use_constant_statewide_share: true
+  calibrated_statewide_share: 0.055299
+  historical_start: "2017-01-01"
+  historical_end: "2024-12-01"
+  daily_generation:
+    seed: 2026
+    # ASSUMPTION: Daily census standard deviation is 3% of the monthly mean.
+    coefficient_of_variation: 0.03
+    # ASSUMPTION: Consecutive daily census deviations follow an AR(1) process.
+    persistence: 0.85
+    integer_counts: true
+    preserve_monthly_patient_days: true
+    minimum_occupied_beds: 0
+    maximum_occupied_beds: 905
+
+bed_type_estimation:
+  # ASSUMPTION: VCU's intensive-care share follows Virginia's monthly share.
+  intensive_bed_method: "statewide_intensive_share"
+  influenza_imputation:
+    missing_marker: "***"
+    # ASSUMPTION: Suppressed values follow the median for the same calendar month.
+    method: "calendar_month_median"
+  covid_19_alignment:
+    raw_series_start: "2017-01-01"
+    outbreak_observation_start: "2020-01-01"
+    outbreak_observation_end: "2024-09-01"
+    pre_outbreak_months_excluded: 36
+    observed_months: 57
+    # Pre-2020 zeros indicate unavailable/not-applicable data, not zero-day stays.
+    treat_pre_outbreak_zeros_as_missing: true
+    unavailable_months:
+      - "2024-10-01"
+      - "2024-11-01"
+      - "2024-12-01"
+  excluded_intensive_bounds:
+    use_minimum: false
+    use_maximum: false
+    reason: "The final minimum value is 7 and requires source verification."
+  patient_flow:
+    annual_discharges: 41852
+    derived_average_los_days: 5.906719
+    # ASSUMPTION: Aggregate admissions and discharges are balanced in steady state.
+    use_steady_state_balance: true
+  category_occupancy:
+    categories:
+      - newborn
+      - delivery
+      - non_elective_via_ed
+      - non_elective_other
+      - elective
+      - covid_19
+      - influenza
+      - other_viral
+    # ASSUMPTION: every non-ICU category admits patients at the same average daily rate.
+    method: "equal_admission_rate_proportional_to_los"
+    # ICU is a peer section (ward), not a diagnosis subset; non-ICU categories
+    # split only the non-ICU remainder so all 9 sections sum to total census.
+    icu_is_peer_section: true
+    free_beds_formula: "staffed_beds - total_occupied_beds"
+    # ASSUMPTION: hospitals flexibly reassign ward capacity; no per-category bed pool exists.
+    flexible_wards_no_isolated_capacity: true
+  category_daily_generation:
+    # ASSUMPTION: each section's discharges depend on its own current daily LOS.
+    method: "admissions_discharges_turnover"
+    formula: "occupied(t) = occupied(t-1) - occupied(t-1)/LOS(t) + admissions(t)"
+    admissions_distribution: "poisson"
+    admissions_rate: "monthly_target_census / LOS(t)"
+    # ASSUMPTION: ICU has no LOS series; use the overall constant average LOS.
+    icu_los_source: "vcu_average_los_days"
+    total_occupied_beds_is_sum_of_sections: true
+    exact_monthly_reconciliation: false
+    known_tradeoff: "Volatile categories (influenza, COVID-19) show larger temporary drift from target after a monthly target shift, since the recurrence takes roughly one LOS-cycle to re-equilibrate."
+    cross_section_capacity_feedback: false
+  daily_length_of_stay:
+    # ASSUMPTION: LOS varies day to day (AR(1), reusing total-census CV/persistence)
+    # but is rescaled so each month's daily average equals the known monthly LOS.
+    method: "ar1_rescaled_to_monthly_mean"
+    minimum_days: 0.1
+  master_daily_dataset:
+    format: "wide"
+    scope_start: "2017-01-01"
+    scope_end: "2024-12-31"
+    forecast_2025_2026_deferred: true
