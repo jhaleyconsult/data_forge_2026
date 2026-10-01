@@ -120,3 +120,32 @@ nurse_staffing:
   rounding: "ceil_per_unit"
   # Pre-2020 COVID-19 census is missing (not applicable) and contributes zero nurses.
   missing_census_as_zero: true
+
+room_cleaning:
+  output_dataset: "data/vcu_cleaning_workload_daily.csv"
+  # ASSUMPTION: user-supplied reference times; original source not yet documented.
+  source_verified: false
+  # Mean minutes per clean. "occupied" = daily clean of an occupied room (bed state unchanged);
+  # "discharge" = clean after discharge (duration of the `cleaning` bed state).
+  unit_minutes:
+    med_surg: {occupied: 30, discharge: 45}
+    icu: {occupied: 40, discharge: 60}
+    # ASSUMPTION: no L&D or pediatric values supplied; reuse med-surg times.
+    labor_delivery: {occupied: 30, discharge: 45}
+    pediatric: {occupied: 30, discharge: 45}
+  # Reference only: no ED or OR room data exists in the dataset, so these are not used yet.
+  unmodeled_room_minutes:
+    emergency_room: {turnover: 15}
+    operating_room: {turnover: 20, terminal: 60}
+  # Reuses nurse_staffing.category_to_unit for category -> unit mapping.
+  # ASSUMPTION: each occupied bed gets one occupied clean per day.
+  occupied_cleans_per_bed_per_day: 1
+  # ASSUMPTION: one discharge clean per expected discharge; transfers between units not counted.
+  discharge_cleans_source: "expected_discharges"
+  sampling:
+    distribution: "lognormal"
+    # ASSUMPTION: cleaning-time CV of 0.30; no variability data supplied.
+    coefficient_of_variation: 0.30
+    seed: 2026
+  # ASSUMPTION: wait in `needs_cleaning` before EVS starts is unknown; not yet modeled.
+  needs_cleaning_wait_modeled: false

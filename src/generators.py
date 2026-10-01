@@ -233,6 +233,65 @@ def compute_required_nurses(
     return result
 
 
+def lognormal_params(mean: float, cv: float) -> tuple[float, float]:
+    """Return (mu, sigma) of a log-normal with the given arithmetic mean and CV."""
+    if mean <= 0 or cv <= 0:
+        raise ValueError("mean and cv must be positive")
+    sigma2 = np.log(1 + cv**2)
+    return float(np.log(mean) - sigma2 / 2), float(np.sqrt(sigma2))
+
+
+def sample_cleaning_minutes(
+    mean_minutes: float, cv: float, size: int, seed: int
+) -> np.ndarray:
+    """Draw right-skewed (log-normal) cleaning durations in minutes."""
+    mu, sigma = lognormal_params(mean_minutes, cv)
+    return np.random.default_rng(seed).lognormal(mu, sigma, size)
+
+
+def compute_daily_cleaning_workload(
+    daily_census: pd.DataFrame,
+    daily_discharges: pd.DataFrame,
+    category_to_unit: dict[str, str],
+    unit_minutes: dict[str, dict[str, float]],
+    occupied_cleans_per_bed_per_day: float = 1,
+) -> pd.DataFrame:
+    """Compute expected daily cleaning minutes by unit from census and discharges.
+
+    Both inputs have one column per category. Occupied-room minutes are census
+    times cleans per bed times the unit's occupied-clean mean; discharge minutes
+    are discharges times the unit's discharge-clean mean.
+    """
+    for name, frame in (("census", daily_census), ("discharges", daily_discharges)):
+        missing = set(category_to_unit) - set(frame.columns)
+        if missing:
+            raise KeyError(f"{name} is missing categories: {sorted(missing)}")
+    unknown_units = set(category_to_unit.values()) - set(unit_minutes)
+    if unknown_units:
+        raise KeyError(f"no cleaning minutes defined for units: {sorted(unknown_units)}")
+
+    groups = pd.Series(category_to_unit)
+    unit_census = daily_census[list(category_to_unit)].fillna(0).T.groupby(groups).sum().T
+    unit_discharges = daily_discharges[list(category_to_unit)].fillna(0).T.groupby(groups).sum().T
+    if (unit_census < 0).any().any() or (unit_discharges < 0).any().any():
+        raise ValueError("census and discharges must be non-negative")
+
+    result = pd.DataFrame(index=daily_census.index)
+    for unit in unit_census.columns:
+        minutes = unit_minutes[unit]
+        result[f"discharges_{unit}"] = unit_discharges[unit]
+        result[f"occupied_clean_minutes_{unit}"] = (
+            unit_census[unit] * occupied_cleans_per_bed_per_day * minutes["occupied"]
+        )
+        result[f"discharge_clean_minutes_{unit}"] = unit_discharges[unit] * minutes["discharge"]
+    result["occupied_clean_minutes_total"] = result.filter(like="occupied_clean_minutes_").sum(axis=1)
+    result["discharge_clean_minutes_total"] = result.filter(like="discharge_clean_minutes_").sum(axis=1)
+    result["cleaning_hours_total"] = (
+        result["occupied_clean_minutes_total"] + result["discharge_clean_minutes_total"]
+    ) / 60
+    return result
+
+
 def generate_daily_occupied_beds(
     monthly_means: pd.Series,
     capacity: int,
