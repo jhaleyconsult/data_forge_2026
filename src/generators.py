@@ -188,6 +188,51 @@ def generate_daily_length_of_stay(
     return pd.concat(frames, ignore_index=True)
 
 
+def compute_required_nurses(
+    daily_census: pd.DataFrame,
+    category_to_unit: dict[str, str],
+    unit_ratios: dict[str, dict[str, float]],
+    shifts_per_day: int,
+) -> pd.DataFrame:
+    """Compute minimum/maximum nurses required per shift and per day by unit.
+
+    ``daily_census`` has one column per category (occupied beds). Category
+    census is summed into units, then each unit's census is divided by its
+    patients-per-nurse ratio and rounded up. ``nurses_min`` uses the higher
+    patients-per-nurse bound; ``nurses_max`` uses the lower bound.
+    """
+    missing = set(category_to_unit) - set(daily_census.columns)
+    if missing:
+        raise KeyError(f"census is missing categories: {sorted(missing)}")
+    unknown_units = set(category_to_unit.values()) - set(unit_ratios)
+    if unknown_units:
+        raise KeyError(f"no ratio defined for units: {sorted(unknown_units)}")
+    if shifts_per_day <= 0:
+        raise ValueError("shifts_per_day must be positive")
+
+    census = daily_census[list(category_to_unit)].fillna(0)
+    if (census < 0).any().any():
+        raise ValueError("census values must be non-negative")
+    unit_census = census.T.groupby(pd.Series(category_to_unit)).sum().T
+
+    result = pd.DataFrame(index=daily_census.index)
+    for unit, ratio in unit_ratios.items():
+        if unit not in unit_census.columns:
+            continue
+        low, high = ratio["patients_per_nurse_min"], ratio["patients_per_nurse_max"]
+        if not 0 < low <= high:
+            raise ValueError(f"invalid ratio bounds for {unit}")
+        result[f"census_{unit}"] = unit_census[unit].astype(int)
+        result[f"nurses_per_shift_min_{unit}"] = np.ceil(unit_census[unit] / high).astype(int)
+        result[f"nurses_per_shift_max_{unit}"] = np.ceil(unit_census[unit] / low).astype(int)
+
+    for bound in ("min", "max"):
+        per_shift = result.filter(like=f"nurses_per_shift_{bound}_").sum(axis=1)
+        result[f"nurses_per_shift_{bound}_total"] = per_shift
+        result[f"nurse_shifts_per_day_{bound}_total"] = per_shift * shifts_per_day
+    return result
+
+
 def generate_daily_occupied_beds(
     monthly_means: pd.Series,
     capacity: int,

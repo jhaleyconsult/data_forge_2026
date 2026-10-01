@@ -88,3 +88,35 @@ bed_type_estimation:
     scope_start: "2017-01-01"
     scope_end: "2024-12-31"
     forecast_2025_2026_deferred: true
+
+nurse_staffing:
+  source_dataset: "data/vcu_master_daily.csv"
+  output_dataset: "data/vcu_nurse_requirements_daily.csv"
+  # Recommended nurse-to-patient ratios (patients per nurse), user-supplied reference list.
+  # "max" = most patients per nurse (minimum staffing); "min" = fewest (maximum staffing).
+  unit_ratios:
+    icu: {patients_per_nurse_min: 1, patients_per_nurse_max: 2}
+    med_surg: {patients_per_nurse_min: 4, patients_per_nurse_max: 5}
+    labor_delivery: {patients_per_nurse_min: 1, patients_per_nurse_max: 2}
+    pediatric: {patients_per_nurse_min: 3, patients_per_nurse_max: 4}
+  # ED ratio varies by triage level; no ED visit/triage census exists in the dataset.
+  emergency_department_modeled: false
+  category_to_unit:
+    intensive: icu
+    # ASSUMPTION: delivery census (incl. postpartum days) staffed at L&D active-labor ratio; overstates demand.
+    delivery: labor_delivery
+    # ASSUMPTION: newborns staffed at the pediatric ratio; no nursery ratio was supplied.
+    newborn: pediatric
+    # ASSUMPTION: inpatients admitted via ED are on med-surg floors after admission.
+    non_elective_via_ed: med_surg
+    non_elective_other: med_surg
+    elective: med_surg
+    covid_19: med_surg
+    influenza: med_surg
+    other_viral: med_surg
+  # ASSUMPTION: two 12-hour shifts per day, each staffed to the daily (midnight) census.
+  shifts_per_day: 2
+  # Ratios applied per unit with ceiling rounding (a partial patient load still needs a nurse).
+  rounding: "ceil_per_unit"
+  # Pre-2020 COVID-19 census is missing (not applicable) and contributes zero nurses.
+  missing_census_as_zero: true
