@@ -23,6 +23,8 @@ occupied_bed_history:
 bed_type_estimation:
   # ASSUMPTION: VCU's intensive-care share follows Virginia's monthly share.
   intensive_bed_method: "statewide_intensive_share"
+  # ASSUMPTION: the 2022 ICU step-down reflects post-vaccination decline in severe COVID-19 (historical context, not tested).
+  icu_2022_level_shift_explanation: "covid_19_vaccination"
   influenza_imputation:
     missing_marker: "***"
     # ASSUMPTION: Suppressed values follow the median for the same calendar month.
@@ -123,7 +125,9 @@ nurse_staffing:
 
 room_cleaning:
   output_dataset: "data/vcu_cleaning_workload_daily.csv"
-  # ASSUMPTION: user-supplied reference times; original source not yet documented.
+  # ASSUMPTION: times are user estimates informed by public summaries of the
+  # Practice Guidance for Healthcare Environmental Cleaning, 4th Ed.; not quoted values.
+  source: "Practice Guidance for Healthcare Environmental Cleaning, 4th Ed. (estimated)"
   source_verified: false
   # Mean minutes per clean. "occupied" = daily clean of an occupied room (bed state unchanged);
   # "discharge" = clean after discharge (duration of the `cleaning` bed state).
@@ -147,5 +151,5 @@ room_cleaning:
     # ASSUMPTION: cleaning-time CV of 0.30; no variability data supplied.
     coefficient_of_variation: 0.30
     seed: 2026
-  # ASSUMPTION: wait in `needs_cleaning` before EVS starts is unknown; not yet modeled.
-  needs_cleaning_wait_modeled: false
+  # ASSUMPTION: constant wait in `needs_cleaning` before EVS starts; varies by hospital, no data.
+  needs_cleaning_wait_minutes: 30

@@ -1,0 +1,13 @@
+{
+  "name": "data_forge_2026",
+  "build": { "dockerfile": "../Dockerfile", "context": ".." },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "forwardPorts": [8888, 8501],
+  "customizations": {
+    "vscode": {
+      "settings": { "python.defaultInterpreterPath": "/opt/venv/bin/python" },
+      "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
+    }
+  }
+}
