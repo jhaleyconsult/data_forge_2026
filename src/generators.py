@@ -292,6 +292,49 @@ def compute_daily_cleaning_workload(
     return result
 
 
+def sample_diurnal_arrival_seconds(
+    event_counts: list[int],
+    seed: int,
+    peak_hour: float,
+    amplitude: float,
+) -> np.ndarray:
+    """Sample within-day event times from a smooth 24-hour sinusoidal profile.
+
+    The output is a flat array of seconds after midnight in the same group order
+    as ``event_counts``. The relative event intensity is
+    ``1 + amplitude * cos(2*pi*(hour - peak_hour)/24)``; daily group counts are
+    preserved exactly.
+    """
+    counts = np.asarray(event_counts)
+    if counts.ndim != 1 or not np.issubdtype(counts.dtype, np.integer):
+        raise ValueError("event_counts must be a one-dimensional sequence of integers")
+    if (counts < 0).any():
+        raise ValueError("event_counts must be non-negative")
+    if not 0 <= peak_hour < 24:
+        raise ValueError("peak_hour must be between 0 and 24")
+    if not 0 <= amplitude < 1:
+        raise ValueError("amplitude must be between 0 and 1")
+
+    total = int(counts.sum())
+    if total == 0:
+        return np.empty(0, dtype=np.int64)
+
+    rng = np.random.default_rng(seed)
+    samples = np.empty(total, dtype=float)
+    sampled = 0
+    while sampled < total:
+        candidate_count = max(64, 2 * (total - sampled))
+        candidates = rng.uniform(0, 24, size=candidate_count)
+        phase = 2 * np.pi * (candidates - peak_hour) / 24
+        acceptance = (1 + amplitude * np.cos(phase)) / (1 + amplitude)
+        accepted = candidates[rng.random(candidate_count) < acceptance]
+        accepted_count = min(len(accepted), total - sampled)
+        samples[sampled : sampled + accepted_count] = accepted[:accepted_count]
+        sampled += accepted_count
+
+    return np.floor(samples * 3600).astype(np.int64)
+
+
 def generate_daily_occupied_beds(
     monthly_means: pd.Series,
     capacity: int,

@@ -50,6 +50,9 @@ bed_type_estimation:
     derived_average_los_days: 5.906719
     # ASSUMPTION: Aggregate admissions and discharges are balanced in steady state.
     use_steady_state_balance: true
+    # ASSUMPTION: Use the user-reported 28% for ED-originating inpatient admissions
+    # routed to ICU, not for all ED visits; source and original denominator are unverified.
+    ed_originating_inpatient_admissions_to_icu_share: 0.28
   category_occupancy:
     categories:
       - newborn
@@ -91,6 +94,26 @@ bed_type_estimation:
     scope_end: "2024-12-31"
     forecast_2025_2026_deferred: true
 
+appointment_arrivals:
+  seed: 2026
+  # ASSUMPTION: No observed hourly pattern exists; all categories share a generic diurnal curve.
+  profile: "sinusoidal_24_hour"
+  peak_hour: 10
+  # ASSUMPTION: Relative hourly intensity ranges from 0.3 to 1.7 around its daily mean.
+  amplitude: 0.7
+  preserve_daily_category_counts: true
+
+maternal_newborn_couplet:
+  enabled: true
+  # ASSUMPTION: Each delivery admission represents one mother-newborn pair in the happy-path simulation.
+  couplet_count_source: "delivery_admissions"
+  arrival_time_source: "delivery_event"
+  newborn_category_is_separate_arrival: false
+  # ASSUMPTION: The pair shares one bed and one nurse assignment; the bed stays occupied until both are ready to leave.
+  bed_capacity_units_per_couplet: 1
+  nurse_assignments_per_couplet: 1
+  room_occupancy_los_rule: "max(delivery_los_days, newborn_los_days)"
+
 nurse_staffing:
   source_dataset: "data/vcu_master_daily.csv"
   output_dataset: "data/vcu_nurse_requirements_daily.csv"
@@ -101,7 +124,7 @@ nurse_staffing:
     med_surg: {patients_per_nurse_min: 4, patients_per_nurse_max: 5}
     labor_delivery: {patients_per_nurse_min: 1, patients_per_nurse_max: 2}
     pediatric: {patients_per_nurse_min: 3, patients_per_nurse_max: 4}
-  # ED ratio varies by triage level; no ED visit/triage census exists in the dataset.
+  # ED visit/triage census is absent; ED-originating inpatient admissions are distinct from ED visits.
   emergency_department_modeled: false
   category_to_unit:
     intensive: icu
