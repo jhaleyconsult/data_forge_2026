@@ -345,8 +345,10 @@ def assign_patient_attributes(
 
     ``settings`` is the ``patient_attributes`` block of ``data/assumptions.yaml``.
     Severity is drawn per category from ``severity_mix``; critical patients take
-    ``critical_priority_rank``. Electives move within a severity-based window from
-    their requested ``date``; non-critical viral patients move within the same day.
+    ``critical_priority_rank``. Non-critical patients in ``scheduled_admissions``
+    categories may be flagged ``is_scheduled`` and take its rank. Electives move
+    within a severity-based window from their requested ``date``; non-critical
+    viral patients move within the same day.
     """
     categories = set(appointments["category"])
     mix = settings["severity_mix"]
@@ -373,6 +375,14 @@ def assign_patient_attributes(
 
     is_critical = result["severity"] == "critical"
     result["priority_rank"] = result["category"].map(settings["base_priority_rank"]).astype(int)
+
+    scheduled = settings.get("scheduled_admissions", {})
+    result["is_scheduled"] = False
+    for category, share in sorted(scheduled.get("share_of_non_critical", {}).items()):
+        rows = result.index[(result["category"] == category) & ~is_critical]
+        result.loc[rows, "is_scheduled"] = rng.random(len(rows)) < share
+    if scheduled:
+        result.loc[result["is_scheduled"], "priority_rank"] = int(scheduled["priority_rank"])
     result.loc[is_critical, "priority_rank"] = int(settings["critical_priority_rank"])
 
     moves = settings["moveability"]
@@ -392,6 +402,56 @@ def assign_patient_attributes(
     ).dt.date
     result["unit"] = result["category"].map(category_to_unit)
     return result
+
+
+def sample_nhpp_arrival_seconds(
+    daily_rate: float, peak_hour: float, amplitude: float, seed: int
+) -> np.ndarray:
+    """Sample one day of non-homogeneous Poisson arrivals by thinning.
+
+    The intensity is ``daily_rate / 24 * (1 + amplitude * cos(2*pi*(hour - peak_hour)/24))``
+    per hour, so the expected daily count is ``daily_rate`` and the realized count
+    is Poisson. Returns sorted seconds after midnight.
+    """
+    if daily_rate < 0:
+        raise ValueError("daily_rate must be non-negative")
+    if not 0 <= peak_hour < 24:
+        raise ValueError("peak_hour must be between 0 and 24")
+    if not 0 <= amplitude < 1:
+        raise ValueError("amplitude must be between 0 and 1")
+
+    rng = np.random.default_rng(seed)
+    candidates = rng.uniform(0, 24, size=rng.poisson(daily_rate * (1 + amplitude)))
+    intensity = 1 + amplitude * np.cos(2 * np.pi * (candidates - peak_hour) / 24)
+    accepted = candidates[rng.random(len(candidates)) < intensity / (1 + amplitude)]
+    return np.sort(np.floor(accepted * 3600).astype(np.int64))
+
+
+def generate_synthetic_day(
+    date: pd.Timestamp,
+    category_rates: dict[str, float],
+    peak_hour: float,
+    amplitude: float,
+    seed: int,
+) -> pd.DataFrame:
+    """Generate one day of patient arrivals per category from expected daily rates.
+
+    Returns one row per arrival with ``patient_id``, ``date``, ``category``, and
+    ``arrival_time``, sorted by arrival time.
+    """
+    date = pd.Timestamp(date).normalize()
+    seeds = np.random.SeedSequence(seed).generate_state(len(category_rates))
+    frames = []
+    for category_seed, (category, rate) in zip(seeds, sorted(category_rates.items())):
+        seconds = sample_nhpp_arrival_seconds(rate, peak_hour, amplitude, int(category_seed))
+        frames.append(pd.DataFrame({
+            "patient_id": [f"{date:%Y%m%d}-{category}-{n:04d}" for n in range(1, len(seconds) + 1)],
+            "date": date.date(),
+            "category": category,
+            "arrival_time": date + pd.to_timedelta(seconds, unit="s"),
+        }))
+    day = pd.concat(frames, ignore_index=True)
+    return day.sort_values(["arrival_time", "patient_id"]).reset_index(drop=True)
 
 
 def generate_daily_occupied_beds(

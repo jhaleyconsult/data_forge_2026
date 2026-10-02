@@ -185,11 +185,12 @@ patient_attributes:
   severity_mix:
     # ASSUMPTION: critical share anchored to the unverified 28% ED-origin-to-ICU figure; rest uniform.
     non_elective_via_ed: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
-    non_elective_other: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
-    # ASSUMPTION: viral admissions mostly arrive via ED, so they reuse the ED mix.
-    covid_19: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
-    influenza: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
-    other_viral: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    # ASSUMPTION: user-chosen 18% critical share for non-ED non-elective and viral admissions
+    # (lowered from 28% to limit priority-1 crowding); rest uniform.
+    non_elective_other: {low: 0.2733, medium: 0.2733, high: 0.2734, critical: 0.18}
+    covid_19: {low: 0.2733, medium: 0.2733, high: 0.2734, critical: 0.18}
+    influenza: {low: 0.2733, medium: 0.2733, high: 0.2734, critical: 0.18}
+    other_viral: {low: 0.2733, medium: 0.2733, high: 0.2734, critical: 0.18}
     # ASSUMPTION: ICU patients are high or critical only.
     intensive: {high: 0.5, critical: 0.5}
     delivery: {low: 0.25, medium: 0.25, high: 0.25, critical: 0.25}
@@ -199,7 +200,7 @@ patient_attributes:
   # Queue priority, lower served first. Non-critical viral and other ED admits tie (FIFO by arrival).
   base_priority_rank:
     intensive: 1
-    # ASSUMPTION: every delivery admission is treated as active labor.
+    # Unscheduled deliveries are active labor; scheduled ones are split out below.
     delivery: 1
     # Newborns share the mother's bed (couplet), so they inherit delivery's rank.
     newborn: 1
@@ -211,6 +212,13 @@ patient_attributes:
     elective: 4
   # ASSUMPTION: any critical-severity patient is life-threatening and takes rank 1.
   critical_priority_rank: 1
+  # Scheduled admissions (inductions/planned C-sections, planned post-op ICU) do not jump
+  # the queue. Drawn only among non-critical patients; critical always stays rank 1.
+  scheduled_admissions:
+    # ASSUMPTION: share of non-critical patients who are scheduled; placeholders, no data.
+    # Delivery 0.40 of non-critical = ~30% of all deliveries; ICU 0.40 of high = ~20% of ICU.
+    share_of_non_critical: {delivery: 0.40, intensive: 0.40}
+    priority_rank: 3
   moveability:
     elective_move_window_days: {high: 7, medium: 14, low: 30}
     # ASSUMPTION: medium-severity elective window of 14 days pending user confirmation.
@@ -234,3 +242,34 @@ discharge_pending:
   # ASSUMPTION: sicker patients take longer to discharge; multipliers rescaled so the
   # census-weighted overall mean stays at overall_mean_minutes.
   severity_multipliers: {low: 0.6, medium: 0.9, high: 1.2, critical: 1.5}
+
+synthetic_days:
+  seed: 2028
+  # Each run is a numbered arrival set; bump run_id for a new independent draw.
+  run_id: 1
+  source_dataset: "data/vcu_master_daily.csv"
+  output_dataset: "data/synthetic_days_{run_id:02d}.csv"
+  # ASSUMPTION: each category's daily arrival rate is the mean of its daily admissions in
+  # the scenario's calendar month; arrivals are a non-homogeneous Poisson process using
+  # the appointment_arrivals diurnal curve (same curve for every category).
+  rate_source: "monthly_mean_daily_admissions"
+  # Newborns arrive with the mother (maternal_newborn_couplet), not as separate arrivals.
+  excluded_categories: [newborn]
+  viral_categories: [covid_19, influenza, other_viral]
+  # ASSUMPTION: the simulation starts empty, as the hospital's opening day (user decision).
+  # Census builds up over roughly one LOS (~6 days), so early days understate ghost-bed pressure.
+  initial_state: "empty"
+  scenarios:
+    # Highest 2024 monthly census (714.6 beds). Stress test, not history.
+    code_red_winter:
+      start_date: "2024-01-08"
+      days: 7
+      label: "stress_test"
+      # ASSUMPTION: what-if winter surge; viral arrivals x1.3 on top of the reconstructed rate.
+      viral_rate_multiplier: 1.3
+    # Lower 2024 census (660.5 beds): comparison week.
+    baseline_spring:
+      start_date: "2024-05-06"
+      days: 7
+      label: "baseline"
+      viral_rate_multiplier: 1.0

@@ -56,7 +56,8 @@ role-playing her; do not speak as her or invent biographical claims.
 
 - Use SimPy for discrete-event simulation.
 - Use NumPy, SciPy, and pandas for data and distributions.
-- Use DuckDB for event logging and analytics, not live simulation state.
+- Use a pandas DataFrame (saved to CSV) for the event log and analytics, not
+  live simulation state. No database.
 - Use OR-Tools CP-SAT for elective scheduling and unit-level staffing
   optimization.
 - Use Streamlit and Plotly for dashboard work.

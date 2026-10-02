@@ -34,17 +34,19 @@ scheduling changes against them. The team checklist is in
 │   └── copilot-instructions.md                # Project rules and modeling constraints
 ├── data/
 │   ├── assumptions.yaml                       # All config + flagged assumptions
-│   ├── create_daily_totals_table.sql          # DuckDB table schema
 │   ├── vcu_master_daily.csv                   # Daily census/admissions/discharges/LOS by section
 │   ├── vcu_nurse_requirements_daily.csv       # Daily min/max nurses per shift by unit
 │   ├── vcu_cleaning_workload_daily.csv        # Daily cleaning minutes by unit
-│   └── synthetic_appointments.csv             # Synthetic appointment data
+│   ├── synthetic_appointments.csv             # Synthetic admissions with patient attributes
+│   └── synthetic_days_01.csv                  # Poisson arrival scenarios, run 01
 ├── docs/
+│   ├── data_dictionary.md                     # Column-level reference for data/
 │   ├── occupied_beds_forecast_decisions.md    # Decisions log
 │   └── poc-plan.md                            # Phase plan and team checklist
 ├── src/
 │   └── generators.py                          # Reusable data generation / constraint functions
 ├── notebooks/
+│   ├── 01_synthetic_day.ipynb                  # Phase 1: synthetic arrival days
 │   └── archive/                                # Completed data-generation notebooks; retained for provenance
 │       ├── Health_data_generation_notebook.ipynb
 │       ├── daily_appointment_data_generator_notebook.ipynb

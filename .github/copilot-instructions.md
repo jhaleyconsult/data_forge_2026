@@ -14,8 +14,8 @@ Problem: a logistics "Code Red". ED patients board because beds are held by
 absorb hallway crowding; electives are canceled for lack of post-op beds.
 
 ## Current phase
-Phase 1: synthetic day and patient attributes (severity, priority,
-moveability). See the checklist in `docs/poc-plan.md`.
+Phase 2: bed state machine and ghost states. Phase 1 (synthetic days and
+patient attributes) is complete. See the checklist in `docs/poc-plan.md`.
 
 ## Unit being modeled
 Whole hospital — every section with data (ICU, med-surg categories, delivery,
@@ -26,10 +26,10 @@ newborn). ED and OR are not modeled until visit/case data exists.
   `PriorityResource`, patients are SimPy processes. Do not build a custom
   event loop or use threading for this.
 - Distributions/data: **NumPy, SciPy, pandas**.
-- Event log + analytics: **DuckDB**. All simulation events (bed_id,
-  patient_id, state, timestamp) get written here. DuckDB is for the event
-  log and metric queries — it is not the live in-memory state during a run;
-  SimPy owns that.
+- Event log + analytics: **pandas**. All simulation events (bed_id,
+  patient_id, state, timestamp) are collected into a DataFrame and saved as
+  CSV per run. The event log is for metrics after a run — it is not the live
+  in-memory state during a run; SimPy owns that. No database.
 - Optimization: **OR-Tools CP-SAT** for elective/scheduled patient placement
   and unit-level staffing counts per shift.
   Not PuLP/Pyomo unless CP-SAT can't express a constraint.

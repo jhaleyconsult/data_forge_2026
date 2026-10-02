@@ -3,7 +3,8 @@
 Use this file as the team's shared checklist. Mark items `[x]` only after they
 pass the acceptance checks listed under each phase. Record new design decisions
 in [occupied_beds_forecast_decisions.md](occupied_beds_forecast_decisions.md)
-and new values in [`data/assumptions.yaml`](../data/assumptions.yaml).
+and new values in [`data/assumptions.yaml`](../data/assumptions.yaml). Update
+[data_dictionary.md](data_dictionary.md) whenever a dataset gains or changes columns.
 
 ## Problem
 
@@ -61,7 +62,7 @@ The full rules are in [copilot-instructions.md](../.github/copilot-instructions.
 - [x] Synthetic admissions with check-in times (`data/synthetic_appointments.csv`)
 - [x] Generation notebooks archived for provenance (`notebooks/archive/`)
 
-## Phase 1: Synthetic day and patient attributes (current)
+## Phase 1: Synthetic day and patient attributes (complete)
 
 Notebook: `notebooks/01_synthetic_day.ipynb` · Code: `src/generators.py`
 
@@ -70,7 +71,7 @@ Notebook: `notebooks/01_synthetic_day.ipynb` · Code: `src/generators.py`
 - [x] Anchor ED severity so the critical share matches the 28% ED-to-ICU assumption (observed 0.2797)
 - [x] Electives' `date` is the requested date; `deadline_date = date + move_window_days`
 - [x] Regenerate `synthetic_appointments.csv` from the generator (do not hand-edit it)
-- [ ] Build one synthetic day from the current arrival curve (time-varying Poisson arrivals)
+- [x] Build synthetic days from the arrival curve (time-varying Poisson arrivals): `generate_synthetic_day` in `src/generators.py`, scenarios `code_red_winter` (2024-01-08, 7 days, viral ×1.3 stress test) and `baseline_spring` (2024-05-06, 7 days), numbered output `data/synthetic_days_{run_id:02d}.csv`
 
 Acceptance:
 - Daily counts per category are unchanged from the current file.
@@ -78,12 +79,12 @@ Acceptance:
 - The ED severity mix reproduces the configured ICU share within a stated tolerance.
 - Re-running with the same seed reproduces the file exactly.
 
-## Phase 2: Bed state machine and ghost states
+## Phase 2: Bed state machine and ghost states (next)
 
 Notebook: `notebooks/02_bed_state_machine.ipynb` · Code: `src/sim.py`
 
 - [ ] Model beds as a SimPy `PriorityResource`, patients as processes, and cleaning staff as a `Resource` with a count per shift
-- [ ] Start the run at the census for that date from `vcu_master_daily.csv`, not with empty beds
+- [ ] Start every run empty (opening day, `synthetic_days.initial_state: empty`); report results with and without the first ~6 days of build-up
 - [ ] Implement the `discharge_pending` distribution (20-minute floor + log-normal, scaled by severity)
 - [ ] Replace the constant 30-minute `needs_cleaning` wait with a wait for a free cleaner
 - [ ] Apply the viral PPE multipliers to cleaning and nurse workload
@@ -100,7 +101,7 @@ Acceptance:
 
 Notebook: `notebooks/03_event_log_metrics.ipynb` · Code: `src/events.py`
 
-- [ ] Write every state change to DuckDB (`bed_id`, `patient_id`, `state`, `timestamp`, `unit`, `severity`)
+- [ ] Collect every state change in a pandas event log (`bed_id`, `patient_id`, `state`, `timestamp`, `unit`, `severity`) and save it as `data/event_log_{run_id:02d}.csv`
 - [ ] Add metric queries for everything in *What we measure*
 - [ ] Compare staffing levels across simulation runs (e.g., cleaners per shift and nurses per shift) and chart ghost bed-hours against staffing
 - [ ] Run sensitivity tests on the `discharge_pending` mean (2 h / 3 h / 4 h)
@@ -143,6 +144,8 @@ Notebook: `notebooks/05_dashboard_alerts.ipynb` · Code: `src/alerts.py`, `app.p
 | 4 | Severity mix per category and how severity scales `discharge_pending` | Draft in `assumptions.yaml`; needs review |
 | 5 | `discharge_pending` CV (0.5 proposed) | Open |
 | 6 | Wait-time threshold for re-sending the expected wait | Open |
+| 7 | Priority-1 share was 36%; after splitting out scheduled deliveries and planned ICU admissions (rank 3) it is 30%. Scheduled shares (40% of non-critical delivery and ICU) are placeholders | Resolved for now; shares need a source |
+| 8 | Opening-day (empty) start: a 7-day run won't reach the observed census (~700), so ghost-bed pressure is understated. Lengthen runs or accept as an opening-week scenario | Open |
 
 ## Known limitations
 
@@ -150,4 +153,5 @@ Notebook: `notebooks/05_dashboard_alerts.ipynb` · Code: `src/alerts.py`, `app.p
 - Length of stay is not tied to severity, because LOS comes from observed monthly means.
 - ED visits and OR cases are not modeled; "ED" means inpatients admitted through the ED.
 - Equal admission rates across categories mean that elective volume matches every other category by assumption.
+- Influenza and COVID-19 arrive at nearly the same daily rate in January and May (equal admission-rate assumption). The winter scenario adds a ×1.3 viral surge as a labeled stress test, not as observed seasonality.
 - Transport delays are folded into `discharge_pending`.
