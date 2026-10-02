@@ -37,15 +37,17 @@ delivery, newborn). ED and OR are not modeled until visit/case data exists.
 │   └── occupied_beds_forecast_decisions.md    # Forecasting decisions log
 ├── src/
 │   └── generators.py                          # Reusable data generation / constraint functions
-├── Health_data_generation_notebook.ipynb      # Builds vcu_master_daily.csv
-├── daily_appointment_data_generator_notebook.ipynb
-├── nurse_constrant_generator_notebook.ipynb   # Builds nurse and cleaning constraint datasets
+├── notebooks/
+│   └── archive/                                # Completed data-generation notebooks; retained for provenance
+│       ├── Health_data_generation_notebook.ipynb
+│       ├── daily_appointment_data_generator_notebook.ipynb
+│       └── nurse_constrant_generator_notebook.ipynb
 ├── Dockerfile                                 # Container image (Python 3.13 + uv)
 ├── pyproject.toml                             # Dependencies
 └── uv.lock                                    # Pinned dependency versions
 ```
 
-Notebooks are for exploration and validation; reusable logic lives in `src/`.
+Archived notebooks preserve the historical data-generation process; generated datasets are the current inputs. Reusable logic for future simulation work belongs in `src/`.
 Assumptions not backed by data are marked `# ASSUMPTION:` in code and recorded
 in `data/assumptions.yaml`.
 
@@ -94,12 +96,11 @@ Mary is a GitHub Copilot custom agent for this
 project: data-readiness checks, notebook development and validation, and
 simulation modeling within the project's rules and documented assumptions.
 
-### Named in honor of Mary Eliza Mahoney (1845–1926)
-
 Mary Eliza Mahoney was the first African American in the United States to earn
 a professional nursing license, and she spent her career advancing equality for
 African Americans and women.
 
+Archived notebooks preserve the historical data-generation process; generated datasets are the current inputs. Reusable logic for future simulation work belongs in `src/`.
 - **Early life:** Born in spring 1845 in Boston to parents who had been
   enslaved in North Carolina, she attended the Phillips School, one of the
   country's first integrated schools.
