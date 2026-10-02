@@ -57,7 +57,8 @@ role-playing her; do not speak as her or invent biographical claims.
 - Use SimPy for discrete-event simulation.
 - Use NumPy, SciPy, and pandas for data and distributions.
 - Use DuckDB for event logging and analytics, not live simulation state.
-- Use OR-Tools CP-SAT for elective scheduling optimization.
+- Use OR-Tools CP-SAT for elective scheduling and unit-level staffing
+  optimization.
 - Use Streamlit and Plotly for dashboard work.
 - Keep configuration and assumptions in `data/assumptions.yaml`.
 - Model length-of-stay and wait-time variables with right-skewed distributions,
@@ -69,8 +70,10 @@ role-playing her; do not speak as her or invent biographical claims.
 - Use a p75–p80 length-of-stay quantile for elective planning.
 - Flag unsupported assumptions with `# ASSUMPTION:` and record them in
   `data/assumptions.yaml`.
-- Do not introduce real EHR, HL7, FHIR, multi-hospital, Postgres, LLM, or
-  staff-optimization features unless explicitly requested.
+- Do not introduce real EHR, HL7, FHIR, multi-hospital, Postgres, LLM,
+  individual nurse rostering, or real patient-notification features unless
+  explicitly requested.
+- Track work against the checklist in `docs/poc-plan.md`.
 
 ## Assumptions
 
@@ -98,7 +101,12 @@ kept distinct.
   - **Room cleaning:** user estimates informed by the Practice Guidance for
     Healthcare Environmental Cleaning, 4th Ed. (unverified); L&D and pediatric
     reuse med-surg times; log-normal durations with CV 0.30; one occupied clean
-    per bed per day; constant 30-minute `needs_cleaning` wait.
+    per bed per day; constant 30-minute `needs_cleaning` wait (to be replaced
+    by an EVS-cleaner queue).
+  - **Patient attributes (planned):** synthetic 4-level severity; priority
+    ranks; elective move windows from the generated date; viral PPE
+    multipliers (nurse ×1.05, cleaning ×1.10); `discharge_pending` as a
+    20-minute floor plus log-normal with a 3-hour overall mean.
 - When adding an assumption: choose the smallest defensible value, add it to
   `data/assumptions.yaml` with a `# ASSUMPTION:` comment, state why data is
   insufficient, and report it to the user.

@@ -335,6 +335,65 @@ def sample_diurnal_arrival_seconds(
     return np.floor(samples * 3600).astype(np.int64)
 
 
+def assign_patient_attributes(
+    appointments: pd.DataFrame,
+    settings: dict,
+    category_to_unit: dict[str, str],
+    seed: int,
+) -> pd.DataFrame:
+    """Add severity, priority, moveability, deadline, and unit columns to appointments.
+
+    ``settings`` is the ``patient_attributes`` block of ``data/assumptions.yaml``.
+    Severity is drawn per category from ``severity_mix``; critical patients take
+    ``critical_priority_rank``. Electives move within a severity-based window from
+    their requested ``date``; non-critical viral patients move within the same day.
+    """
+    categories = set(appointments["category"])
+    mix = settings["severity_mix"]
+    for name, mapping in (("severity_mix", mix), ("base_priority_rank", settings["base_priority_rank"]),
+                          ("category_to_unit", category_to_unit)):
+        missing = categories - set(mapping)
+        if missing:
+            raise KeyError(f"{name} is missing categories: {sorted(missing)}")
+    levels = settings["severity_levels"]
+    for category, shares in mix.items():
+        if set(shares) - set(levels):
+            raise ValueError(f"{category} has unknown severity levels")
+        if not np.isclose(sum(shares.values()), 1.0):
+            raise ValueError(f"{category} severity shares must sum to 1")
+
+    rng = np.random.default_rng(seed)
+    result = appointments.copy()
+    severity = pd.Series(index=result.index, dtype=object)
+    for category in sorted(categories):
+        rows = result.index[result["category"] == category]
+        shares = mix[category]
+        severity[rows] = rng.choice(list(shares), size=len(rows), p=list(shares.values()))
+    result["severity"] = pd.Categorical(severity, categories=levels, ordered=True)
+
+    is_critical = result["severity"] == "critical"
+    result["priority_rank"] = result["category"].map(settings["base_priority_rank"]).astype(int)
+    result.loc[is_critical, "priority_rank"] = int(settings["critical_priority_rank"])
+
+    moves = settings["moveability"]
+    is_elective = result["category"] == "elective"
+    is_viral = result["category"].isin(moves["viral_categories"])
+    result["is_moveable"] = is_elective | (is_viral & ~is_critical)
+    window = pd.Series(np.nan, index=result.index)
+    window[is_elective] = result.loc[is_elective, "severity"].astype(str).map(
+        moves["elective_move_window_days"]
+    )
+    window[is_viral & ~is_critical] = moves["viral_move_window_days"]
+    if window[result["is_moveable"]].isna().any():
+        raise ValueError("every moveable patient needs a move window")
+    result["move_window_days"] = window.astype("Int64")
+    result["deadline_date"] = (
+        pd.to_datetime(result["date"]) + pd.to_timedelta(result["move_window_days"], unit="D")
+    ).dt.date
+    result["unit"] = result["category"].map(category_to_unit)
+    return result
+
+
 def generate_daily_occupied_beds(
     monthly_means: pd.Series,
     capacity: int,

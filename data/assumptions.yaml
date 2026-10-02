@@ -176,3 +176,61 @@ room_cleaning:
     seed: 2026
   # ASSUMPTION: constant wait in `needs_cleaning` before EVS starts; varies by hospital, no data.
   needs_cleaning_wait_minutes: 30
+
+patient_attributes:
+  seed: 2027
+  severity_levels: [low, medium, high, critical]
+  # ASSUMPTION: no severity data exists. Where nothing anchors a category, severity is
+  # uniform across its allowed levels (the no-information default).
+  severity_mix:
+    # ASSUMPTION: critical share anchored to the unverified 28% ED-origin-to-ICU figure; rest uniform.
+    non_elective_via_ed: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    non_elective_other: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    # ASSUMPTION: viral admissions mostly arrive via ED, so they reuse the ED mix.
+    covid_19: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    influenza: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    other_viral: {low: 0.24, medium: 0.24, high: 0.24, critical: 0.28}
+    # ASSUMPTION: ICU patients are high or critical only.
+    intensive: {high: 0.5, critical: 0.5}
+    delivery: {low: 0.25, medium: 0.25, high: 0.25, critical: 0.25}
+    newborn: {low: 0.25, medium: 0.25, high: 0.25, critical: 0.25}
+    # Electives are never critical (user rule).
+    elective: {low: 0.3333333333, medium: 0.3333333334, high: 0.3333333333}
+  # Queue priority, lower served first. Non-critical viral and other ED admits tie (FIFO by arrival).
+  base_priority_rank:
+    intensive: 1
+    # ASSUMPTION: every delivery admission is treated as active labor.
+    delivery: 1
+    # Newborns share the mother's bed (couplet), so they inherit delivery's rank.
+    newborn: 1
+    non_elective_via_ed: 2
+    covid_19: 2
+    influenza: 2
+    other_viral: 2
+    non_elective_other: 3
+    elective: 4
+  # ASSUMPTION: any critical-severity patient is life-threatening and takes rank 1.
+  critical_priority_rank: 1
+  moveability:
+    elective_move_window_days: {high: 7, medium: 14, low: 30}
+    # ASSUMPTION: medium-severity elective window of 14 days pending user confirmation.
+    medium_window_confirmed: false
+    # Electives' generated `date` is the requested date; they may only move later.
+    elective_requested_date_source: "date"
+    # Non-critical viral patients wait in their car and may move within the same day only.
+    viral_categories: [covid_19, influenza, other_viral]
+    viral_move_window_days: 0
+  # ASSUMPTION: PPE adds 5% nurse workload and 10% cleaning time for viral patients; user estimate.
+  viral_ppe_multipliers:
+    nurse_workload: 1.05
+    cleaning_time: 1.10
+
+discharge_pending:
+  # ASSUMPTION: 20-minute floor plus log-normal; user-chosen overall mean of 3 hours.
+  floor_minutes: 20
+  overall_mean_minutes: 180
+  # ASSUMPTION: CV of the log-normal part; proposed, not confirmed.
+  coefficient_of_variation: 0.5
+  # ASSUMPTION: sicker patients take longer to discharge; multipliers rescaled so the
+  # census-weighted overall mean stays at overall_mean_minutes.
+  severity_multipliers: {low: 0.6, medium: 0.9, high: 1.2, critical: 1.5}

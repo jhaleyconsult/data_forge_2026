@@ -8,6 +8,12 @@ modeled estimates, not patient-level observations.
 Scope: the whole hospital — every section with data (ICU, med-surg categories,
 delivery, newborn). ED and OR are not modeled until visit/case data exists.
 
+Problem: ED patients board because beds are held by "ghost beds" (pending
+discharge, awaiting cleaning, being cleaned). The simulation measures ghost
+bed-hours, ED boarding, and elective cancellations, and tests staffing and
+scheduling changes against them. The team checklist is in
+[docs/poc-plan.md](docs/poc-plan.md).
+
 ## Stack
 
 | Purpose | Tool |
@@ -34,7 +40,8 @@ delivery, newborn). ED and OR are not modeled until visit/case data exists.
 │   ├── vcu_cleaning_workload_daily.csv        # Daily cleaning minutes by unit
 │   └── synthetic_appointments.csv             # Synthetic appointment data
 ├── docs/
-│   └── occupied_beds_forecast_decisions.md    # Forecasting decisions log
+│   ├── occupied_beds_forecast_decisions.md    # Decisions log
+│   └── poc-plan.md                            # Phase plan and team checklist
 ├── src/
 │   └── generators.py                          # Reusable data generation / constraint functions
 ├── notebooks/
