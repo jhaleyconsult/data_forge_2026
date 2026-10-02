@@ -13,7 +13,8 @@ phase scope or acceptance criteria.
 [FILL IN — e.g. "Phase 2: bed state machine" — update this as the project moves forward]
 
 ## Unit being modeled
-[FILL IN — ED / general inpatient (med-surg) / ICU]
+Whole hospital — every section with data (ICU, med-surg categories, delivery,
+newborn). ED and OR are not modeled until visit/case data exists.
 
 ## Stack — use these, don't substitute
 - Simulation: **SimPy**. Beds and staff are `simpy.Resource` /

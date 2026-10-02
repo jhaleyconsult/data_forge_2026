@@ -1,1 +1,3 @@
 *.duckdb.wal
+.pyc
+__pycache__/

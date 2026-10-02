@@ -23,6 +23,8 @@ occupied_bed_history:
 bed_type_estimation:
   # ASSUMPTION: VCU's intensive-care share follows Virginia's monthly share.
   intensive_bed_method: "statewide_intensive_share"
+  # ASSUMPTION: the 2022 ICU step-down reflects post-vaccination decline in severe COVID-19 (historical context, not tested).
+  icu_2022_level_shift_explanation: "covid_19_vaccination"
   influenza_imputation:
     missing_marker: "***"
     # ASSUMPTION: Suppressed values follow the median for the same calendar month.
@@ -48,6 +50,9 @@ bed_type_estimation:
     derived_average_los_days: 5.906719
     # ASSUMPTION: Aggregate admissions and discharges are balanced in steady state.
     use_steady_state_balance: true
+    # ASSUMPTION: Use the user-reported 28% for ED-originating inpatient admissions
+    # routed to ICU, not for all ED visits; source and original denominator are unverified.
+    ed_originating_inpatient_admissions_to_icu_share: 0.28
   category_occupancy:
     categories:
       - newborn
@@ -88,3 +93,86 @@ bed_type_estimation:
     scope_start: "2017-01-01"
     scope_end: "2024-12-31"
     forecast_2025_2026_deferred: true
+
+appointment_arrivals:
+  seed: 2026
+  # ASSUMPTION: No observed hourly pattern exists; all categories share a generic diurnal curve.
+  profile: "sinusoidal_24_hour"
+  peak_hour: 10
+  # ASSUMPTION: Relative hourly intensity ranges from 0.3 to 1.7 around its daily mean.
+  amplitude: 0.7
+  preserve_daily_category_counts: true
+
+maternal_newborn_couplet:
+  enabled: true
+  # ASSUMPTION: Each delivery admission represents one mother-newborn pair in the happy-path simulation.
+  couplet_count_source: "delivery_admissions"
+  arrival_time_source: "delivery_event"
+  newborn_category_is_separate_arrival: false
+  # ASSUMPTION: The pair shares one bed and one nurse assignment; the bed stays occupied until both are ready to leave.
+  bed_capacity_units_per_couplet: 1
+  nurse_assignments_per_couplet: 1
+  room_occupancy_los_rule: "max(delivery_los_days, newborn_los_days)"
+
+nurse_staffing:
+  source_dataset: "data/vcu_master_daily.csv"
+  output_dataset: "data/vcu_nurse_requirements_daily.csv"
+  # Recommended nurse-to-patient ratios (patients per nurse), user-supplied reference list.
+  # "max" = most patients per nurse (minimum staffing); "min" = fewest (maximum staffing).
+  unit_ratios:
+    icu: {patients_per_nurse_min: 1, patients_per_nurse_max: 2}
+    med_surg: {patients_per_nurse_min: 4, patients_per_nurse_max: 5}
+    labor_delivery: {patients_per_nurse_min: 1, patients_per_nurse_max: 2}
+    pediatric: {patients_per_nurse_min: 3, patients_per_nurse_max: 4}
+  # ED visit/triage census is absent; ED-originating inpatient admissions are distinct from ED visits.
+  emergency_department_modeled: false
+  category_to_unit:
+    intensive: icu
+    # ASSUMPTION: delivery census (incl. postpartum days) staffed at L&D active-labor ratio; overstates demand.
+    delivery: labor_delivery
+    # ASSUMPTION: newborns staffed at the pediatric ratio; no nursery ratio was supplied.
+    newborn: pediatric
+    # ASSUMPTION: inpatients admitted via ED are on med-surg floors after admission.
+    non_elective_via_ed: med_surg
+    non_elective_other: med_surg
+    elective: med_surg
+    covid_19: med_surg
+    influenza: med_surg
+    other_viral: med_surg
+  # ASSUMPTION: two 12-hour shifts per day, each staffed to the daily (midnight) census.
+  shifts_per_day: 2
+  # Ratios applied per unit with ceiling rounding (a partial patient load still needs a nurse).
+  rounding: "ceil_per_unit"
+  # Pre-2020 COVID-19 census is missing (not applicable) and contributes zero nurses.
+  missing_census_as_zero: true
+
+room_cleaning:
+  output_dataset: "data/vcu_cleaning_workload_daily.csv"
+  # ASSUMPTION: times are user estimates informed by public summaries of the
+  # Practice Guidance for Healthcare Environmental Cleaning, 4th Ed.; not quoted values.
+  source: "Practice Guidance for Healthcare Environmental Cleaning, 4th Ed. (estimated)"
+  source_verified: false
+  # Mean minutes per clean. "occupied" = daily clean of an occupied room (bed state unchanged);
+  # "discharge" = clean after discharge (duration of the `cleaning` bed state).
+  unit_minutes:
+    med_surg: {occupied: 30, discharge: 45}
+    icu: {occupied: 40, discharge: 60}
+    # ASSUMPTION: no L&D or pediatric values supplied; reuse med-surg times.
+    labor_delivery: {occupied: 30, discharge: 45}
+    pediatric: {occupied: 30, discharge: 45}
+  # Reference only: no ED or OR room data exists in the dataset, so these are not used yet.
+  unmodeled_room_minutes:
+    emergency_room: {turnover: 15}
+    operating_room: {turnover: 20, terminal: 60}
+  # Reuses nurse_staffing.category_to_unit for category -> unit mapping.
+  # ASSUMPTION: each occupied bed gets one occupied clean per day.
+  occupied_cleans_per_bed_per_day: 1
+  # ASSUMPTION: one discharge clean per expected discharge; transfers between units not counted.
+  discharge_cleans_source: "expected_discharges"
+  sampling:
+    distribution: "lognormal"
+    # ASSUMPTION: cleaning-time CV of 0.30; no variability data supplied.
+    coefficient_of_variation: 0.30
+    seed: 2026
+  # ASSUMPTION: constant wait in `needs_cleaning` before EVS starts; varies by hospital, no data.
+  needs_cleaning_wait_minutes: 30
