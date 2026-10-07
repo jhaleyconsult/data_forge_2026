@@ -359,8 +359,6 @@ One-time setup, in a terminal inside the container:
 
 ```bash
 gh auth login                                   # GitHub.com → HTTPS → log in with a web browser
-git config --global user.name "Your Name"
-git config --global user.email "you@example.com"
 ```
 
 In the Dev Container, your sign-in and git name/email are saved in a Docker
