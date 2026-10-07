@@ -1,33 +1,31 @@
 # Copilot Instructions
 
 ## Project
-Discrete-event simulation of a hospital unit's bed/room scheduling, built from
-Virginia state-level monthly averages (patient volume, length of stay, wait
-times). Goal: generate a synthetic day, simulate bed state transitions,
-handle emergency-priority patients, optimize elective scheduling, and surface
-a master calendar with alerts. Full phase breakdown and acceptance criteria
-are in `docs/poc-plan.md` — read that for context on any task involving
-phase scope or acceptance criteria.
+Simulation of a 905-bed hospital's bed turnover, built from Virginia
+state-level monthly averages. Goal: measure how much bed wait comes from
+"ghost rooms" (empty but not yet cleaned), then test whether alerting cleaning
+staff when a nurse marks a patient ready to leave reduces it. The plan, step
+status, metrics, and open team decisions are in `README.md` — read it for any
+task involving scope or acceptance criteria.
 
 ## Current phase
-[FILL IN — e.g. "Phase 2: bed state machine" — update this as the project moves forward]
+Step 2: Baseline simulation (see `README.md`).
 
 ## Unit being modeled
 Whole hospital — every section with data (ICU, med-surg categories, delivery,
 newborn). ED and OR are not modeled until visit/case data exists.
 
-## Stack — use these, don't substitute
-- Simulation: **SimPy**. Beds and staff are `simpy.Resource` /
-  `PriorityResource`, patients are SimPy processes. Do not build a custom
-  event loop or use threading for this.
-- Distributions/data: **NumPy, SciPy, pandas**.
-- Event log + analytics: **DuckDB**. All simulation events (bed_id,
-  patient_id, state, timestamp) get written here. DuckDB is for the event
-  log and metric queries — it is not the live in-memory state during a run;
-  SimPy owns that.
-- Optimization: **OR-Tools CP-SAT** for elective/scheduled patient placement.
-  Not PuLP/Pyomo unless CP-SAT can't express a constraint.
-- Dashboard: **Streamlit** + **Plotly** (Gantt-style timeline, one row per bed).
+## Stack
+In use: Python 3.13, uv, Docker/Dev Container, JupyterLab, pandas, NumPy,
+SciPy, Matplotlib, PyYAML.
+
+Open team decisions (see "Open Team Decisions" in `README.md`): simulation
+approach, how simulation results are stored, API framework (FastAPI
+proposed), dashboard tool, GitHub credentials in the container.
+- Do not pick a tool for an open decision on your own. Present options and
+  tradeoffs and let the user decide; once decided, it is recorded in `README.md`.
+- New dependencies go through `uv add` (updates `pyproject.toml` and
+  `uv.lock`) and require a container rebuild.
 - Config/assumptions: single `data/assumptions.yaml`, not hardcoded constants
   scattered across files.
 
@@ -42,19 +40,24 @@ newborn). ED and OR are not modeled until visit/case data exists.
   already-occupied bed. Once a stay starts, it is not interrupted.
 - Bed state machine has exactly these states, in this order:
   `available → occupied → discharge_pending → needs_cleaning → cleaning → available`.
-- Planning/optimization (Phase 4) uses a **p75–p80 LOS quantile**, not the
-  mean, as the planning duration for elective cases.
+- Elective scheduling (parking lot, not current scope) uses a **p75–p80 LOS
+  quantile**, not the mean, as the planning duration for elective cases.
 - Any assumption not backed by real data (CV values, cleaning time, ED
   split %) must be flagged with a `# ASSUMPTION:` comment in code and
   listed in `data/assumptions.yaml`, not silently hardcoded.
+- In `README.md` and other team-facing text, explain modeling terms in plain
+  language (e.g. "most stays are near typical, a few run much longer" rather
+  than only "log-normal LOS").
 
 ## Repo structure — keep this layout
 ```
 data/assumptions.yaml
-notebooks/01_synthetic_day.ipynb ... 05_dashboard_alerts.ipynb
-src/generators.py, sim.py, events.py, schedule.py, alerts.py
-app.py
-docs/poc-plan.md
+notebooks/            # numbered per step, e.g. 02_baseline_simulation.ipynb
+src/generators.py     # Step 1
+src/events.py         # Steps 2-3: shared check_in / current_care / check_out
+src/sim.py            # Step 2
+api.py                # Step 3
+app.py                # Step 4 dashboard
 ```
 Notebooks are for exploration and validation; reusable logic belongs in
 `src/`, imported into notebooks, not duplicated.

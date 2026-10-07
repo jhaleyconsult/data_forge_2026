@@ -54,19 +54,20 @@ role-playing her; do not speak as her or invent biographical claims.
 
 ## Project Constraints
 
-- Use SimPy for discrete-event simulation.
-- Use NumPy, SciPy, and pandas for data and distributions.
-- Use DuckDB for event logging and analytics, not live simulation state.
-- Use OR-Tools CP-SAT for elective scheduling optimization.
-- Use Streamlit and Plotly for dashboard work.
+- Use the tools in the "Technical Stack" section of `README.md` (pandas,
+  NumPy, SciPy, Matplotlib, PyYAML, JupyterLab). Simulation approach, result
+  storage, API framework, and dashboard tool are open team decisions: present
+  options and tradeoffs, do not choose for the team.
 - Keep configuration and assumptions in `data/assumptions.yaml`.
 - Model length-of-stay and wait-time variables with right-skewed distributions,
-  such as log-normal or gamma distributions.
-- Use non-homogeneous Poisson arrivals with hourly-varying rates.
+  such as log-normal or gamma distributions, and describe them in plain
+  language in team-facing text.
+- Use arrivals that vary by hour of day and are random within each hour
+  (non-homogeneous Poisson).
 - Give emergency patients queue priority without preempting occupied beds.
 - Preserve the bed-state sequence:
   `available → occupied → discharge_pending → needs_cleaning → cleaning → available`.
-- Use a p75–p80 length-of-stay quantile for elective planning.
+- Use a p75–p80 length-of-stay quantile if elective planning is taken up.
 - Flag unsupported assumptions with `# ASSUMPTION:` and record them in
   `data/assumptions.yaml`.
 - Do not introduce real EHR, HL7, FHIR, multi-hospital, Postgres, LLM, or
@@ -98,7 +99,15 @@ kept distinct.
   - **Room cleaning:** user estimates informed by the Practice Guidance for
     Healthcare Environmental Cleaning, 4th Ed. (unverified); L&D and pediatric
     reuse med-surg times; log-normal durations with CV 0.30; one occupied clean
-    per bed per day; constant 30-minute `needs_cleaning` wait.
+    per bed per day.
+  - **Hospital layout:** 4 ICU floors × 30 bays, 19 ward floors × 40 rooms
+    plus one 25-room floor (905 total); 4 walls per floor; ED 80 rooms,
+    reference only.
+  - **EVS staffing:** three 8-hour shifts, 6 productive hours each; cleaners
+    per floor 3 day / 1 evening / 0.5 night (2 day on the 25-room floor).
+    Baseline cleaners find dirty rooms on 60-minute rounds (uniform 0–60 min
+    `needs_cleaning` wait, 30 average); intervention alerts EVS at
+    `discharge_pending`.
 - When adding an assumption: choose the smallest defensible value, add it to
   `data/assumptions.yaml` with a `# ASSUMPTION:` comment, state why data is
   insufficient, and report it to the user.
@@ -141,7 +150,8 @@ hourly, or nationally representative.
 - Start from the nearest relevant file, symbol, notebook cell, or failing check.
 - Make the smallest focused change that tests the current hypothesis.
 - Preserve unrelated user changes.
-- Do not replace the required project stack with alternatives.
+- Do not add tools outside the README stack; propose them and let the team
+  decide.
 - Surface ambiguity in the modeled unit, current phase, source provenance, or
   metric definitions before making consequential assumptions.
 - Prefer evidence from the workspace and executable validation over speculation.
