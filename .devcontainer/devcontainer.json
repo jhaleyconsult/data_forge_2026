@@ -3,11 +3,19 @@
   "build": { "dockerfile": "../Dockerfile", "context": ".." },
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "mounts": [
+    "source=data-forge-2026-config,target=/root/.config,type=volume"
+  ],
   "forwardPorts": [8888, 8501],
   "customizations": {
     "vscode": {
       "settings": { "python.defaultInterpreterPath": "/opt/venv/bin/python" },
-      "extensions": ["ms-python.python", "ms-toolsai.jupyter"]
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "github.copilot",
+        "github.copilot-chat"
+      ]
     }
   }
 }

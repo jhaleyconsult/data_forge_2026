@@ -174,5 +174,47 @@ room_cleaning:
     # ASSUMPTION: cleaning-time CV of 0.30; no variability data supplied.
     coefficient_of_variation: 0.30
     seed: 2026
-  # ASSUMPTION: constant wait in `needs_cleaning` before EVS starts; varies by hospital, no data.
+  # Derived baseline mean: uniform 0-60 min wait from evs_staffing.baseline_rounds (60 / 2).
   needs_cleaning_wait_minutes: 30
+
+hospital_layout:
+  # ASSUMPTION: no VCU floor plan available; layout is synthetic but sums to the observed 905 staffed beds.
+  total_beds_must_equal: 905
+  floors:
+    # ASSUMPTION: 30-bay ICU units; 4 floors (120 bays) cover the observed 2017-2024 ICU census max of 120.
+    icu: {floor_count: 4, rooms_per_floor: 30}
+    # ASSUMPTION: 40-room ward floors; one 25-room floor makes the total exactly 905.
+    ward: {floor_count: 19, rooms_per_floor: 40}
+    ward_partial: {floor_count: 1, rooms_per_floor: 25}
+  # ASSUMPTION: rooms arranged on 4 walls per floor; one wall is one cleaner's round.
+  walls_per_floor: 4
+  # ASSUMPTION: ward categories (med-surg, delivery, newborn, viral) share ward floors flexibly.
+  ward_floors_shared_by_categories: true
+  # Reference only: no ED visit data, so ED rooms are not simulated.
+  emergency_department_rooms_reference: 80
+
+evs_staffing:
+  # ASSUMPTION: three 8-hour EVS shifts; no VCU EVS roster available.
+  shifts:
+    day: {start_hour: 7, hours: 8}
+    evening: {start_hour: 15, hours: 8}
+    night: {start_hour: 23, hours: 8}
+  # ASSUMPTION: 6 of 8 shift hours are hands-on cleaning; the rest is travel, supplies, breaks.
+  productive_hours_per_shift: 6
+  # ASSUMPTION: cleaners per floor per shift; 2017-2024 daily utilization is ward 68% mean / 81% max,
+  # ICU 65% mean / 92% max (see data/vcu_cleaning_workload_daily.csv).
+  cleaners_per_floor:
+    icu: {day: 3, evening: 1, night: 0.5}
+    ward: {day: 3, evening: 1, night: 0.5}
+    ward_partial: {day: 2, evening: 1, night: 0.5}
+  # 0.5 = one night cleaner shared by two floors.
+  baseline_rounds:
+    # ASSUMPTION: in the baseline, a cleaner learns of a discharged room only when their round
+    # passes it; one pass per room per hour gives a uniform 0-60 min `needs_cleaning` wait.
+    round_interval_minutes: 60
+    wait_distribution: "uniform"
+  intervention:
+    # Alert sent when the bed enters `discharge_pending`; cleaning starts at departure if a cleaner is free.
+    notify_on_state: "discharge_pending"
+    # ASSUMPTION: dispatch order is rooms with a waiting patient first (emergency before elective), then oldest discharge.
+    dispatch_priority: ["waiting_emergency", "waiting_elective", "oldest_discharge"]
