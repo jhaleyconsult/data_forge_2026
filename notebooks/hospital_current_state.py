@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.25.1"
-app = marimo.App(width="wide")
+app = marimo.App(width="full")
 
 
 @app.cell
@@ -335,63 +335,176 @@ def _(assumption_summary, cleaning_report, coverage_check, mo, revenue_hypothesi
 
 
 @app.cell
-def _(appointments, monthly_nursing, monthly_view, output_dir, period_key, plt, selected_data):
+def _(mo, operational):
+    chart_months = (
+        operational["date"].dt.to_period("M").drop_duplicates().astype(str).tolist()
+    )
+    start_month_filter = mo.ui.dropdown(
+        options=chart_months,
+        value=chart_months[0],
+        label="Start month",
+        searchable=True,
+        full_width=True,
+    )
+    end_month_filter = mo.ui.dropdown(
+        options=chart_months,
+        value=chart_months[-1],
+        label="End month",
+        searchable=True,
+        full_width=True,
+    )
+    nurse_units = ["ICU", "Med-surg", "Labor & delivery", "Pediatric"]
+    nurse_unit_filter = mo.ui.multiselect(
+        options=nurse_units,
+        value=nurse_units,
+        label="Nurse units to compare",
+        full_width=True,
+    )
+    mo.vstack(
+        [
+            mo.md("### Charts"),
+            mo.hstack([start_month_filter, end_month_filter], widths="equal", wrap=True),
+        ]
+    )
+    return end_month_filter, nurse_unit_filter, start_month_filter
+
+
+@app.cell
+def _(appointments, end_month_filter, mo, nurse_unit_filter, operational, output_dir, pd, plt, start_month_filter):
+    from matplotlib.dates import DateFormatter, YearLocator
+
+    selected_start_month = pd.Period(start_month_filter.value, freq="M")
+    selected_end_month = pd.Period(end_month_filter.value, freq="M")
+    chart_start_month, chart_end_month = sorted(
+        [selected_start_month, selected_end_month]
+    )
+    chart_data = operational.loc[
+        operational["date"].dt.to_period("M").between(
+            chart_start_month, chart_end_month
+        )
+    ].copy()
+    chart_monthly_view = chart_data.set_index("date").resample("MS").agg(
+        mean_occupied_beds=("total_occupied_beds", "mean"),
+        mean_free_beds=("total_free_beds", "mean"),
+        mean_occupancy_pct=("occupancy_pct", "mean"),
+        mean_evs_hours=("cleaning_hours_total", "mean"),
+        occupied_clean_hours=("occupied_clean_minutes_total", lambda values: values.mean() / 60),
+        discharge_clean_hours=("discharge_clean_minutes_total", lambda values: values.mean() / 60),
+    )
+    chart_monthly_nursing = chart_data.set_index("date").resample("MS").mean(
+        numeric_only=True
+    )
+    chart_period_key = (
+        "all_history"
+        if chart_start_month == operational["date"].min().to_period("M")
+        and chart_end_month == operational["date"].max().to_period("M")
+        else f"{chart_start_month.strftime('%Y%m')}_{chart_end_month.strftime('%Y%m')}"
+    )
+    chart_period_label = f"{chart_start_month} to {chart_end_month}"
+    if selected_start_month > selected_end_month:
+        chart_period_label += " (months reordered)"
+    chart_marker = "o" if len(chart_monthly_view) == 1 else None
+
     plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.25})
-    figure, axes = plt.subplots(3, 2, figsize=(15, 13))
 
-    axes[0, 0].plot(monthly_view.index, monthly_view["mean_occupied_beds"], label="Occupied", color="#176B87")
-    axes[0, 0].plot(monthly_view.index, monthly_view["mean_free_beds"], label="Available", color="#E07A5F")
-    axes[0, 0].set_title("Beds: occupied and available")
-    axes[0, 0].set_ylabel("Average beds per day")
-    axes[0, 0].legend()
-    axes[0, 1].plot(monthly_view.index, monthly_view["mean_occupancy_pct"], color="#3A7D44")
-    axes[0, 1].set_title("Bed occupancy")
-    axes[0, 1].set_ylabel("Percent")
+    beds_figure, bed_axes = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+    bed_axes[0].plot(chart_monthly_view.index, chart_monthly_view["mean_occupied_beds"], label="Occupied", color="#176B87", marker=chart_marker)
+    bed_axes[0].plot(chart_monthly_view.index, chart_monthly_view["mean_free_beds"], label="Available", color="#E07A5F", marker=chart_marker)
+    bed_axes[0].set_title("Beds: occupied and available", fontsize=16, pad=14)
+    bed_axes[0].set_ylabel("Average beds per day")
+    bed_axes[0].legend()
+    bed_axes[1].plot(chart_monthly_view.index, chart_monthly_view["mean_occupancy_pct"], color="#3A7D44", marker=chart_marker)
+    bed_axes[1].set_title("Bed occupancy", fontsize=16, pad=14)
+    bed_axes[1].set_ylabel("Percent")
+    beds_figure.suptitle(f"Bed occupancy | {chart_period_label}", fontsize=18)
 
-    axes[1, 0].plot(monthly_nursing.index, monthly_nursing["nurses_per_shift_min_total"], label="Minimum modeled", color="#176B87")
-    axes[1, 0].plot(monthly_nursing.index, monthly_nursing["nurses_per_shift_max_total"], label="Maximum modeled", color="#D1495B")
-    axes[1, 0].set_title("Nurse requirements")
-    axes[1, 0].set_ylabel("Nurses per shift")
-    axes[1, 0].legend()
-    for unit, minimum_column, maximum_column in [
+    nursing_figure, nurse_axes = plt.subplots(2, 1, figsize=(14, 12), sharex=True)
+    unit_columns = [
         ("ICU", "nurses_per_shift_min_icu", "nurses_per_shift_max_icu"),
         ("Med-surg", "nurses_per_shift_min_med_surg", "nurses_per_shift_max_med_surg"),
         ("Labor & delivery", "nurses_per_shift_min_labor_delivery", "nurses_per_shift_max_labor_delivery"),
         ("Pediatric", "nurses_per_shift_min_pediatric", "nurses_per_shift_max_pediatric"),
-    ]:
-        axes[1, 1].plot(monthly_nursing.index, monthly_nursing[minimum_column], label=f"{unit} minimum")
-        axes[1, 1].plot(monthly_nursing.index, monthly_nursing[maximum_column], linestyle="--", label=f"{unit} maximum")
-    axes[1, 1].set_title("Nurse requirements by unit")
-    axes[1, 1].set_ylabel("Nurses per shift")
-    axes[1, 1].legend(ncol=2, fontsize=7)
+    ]
+    selected_nurse_units = nurse_unit_filter.value
+    for unit, minimum_column, maximum_column in unit_columns:
+        if unit not in selected_nurse_units:
+            continue
+        nurse_axes[0].plot(chart_monthly_nursing.index, chart_monthly_nursing[minimum_column], label=f"{unit} minimum", marker=chart_marker)
+        nurse_axes[0].plot(chart_monthly_nursing.index, chart_monthly_nursing[maximum_column], linestyle="--", label=f"{unit} maximum", marker=chart_marker)
+    nurse_axes[0].set_title("Nurse requirements by unit", fontsize=16, pad=14)
+    nurse_axes[0].set_ylabel("Nurses per shift")
+    if selected_nurse_units:
+        nurse_axes[0].legend(ncol=2, fontsize=9)
+    else:
+        nurse_axes[0].text(
+            0.5,
+            0.5,
+            "Select one or more units to compare",
+            ha="center",
+            va="center",
+            transform=nurse_axes[0].transAxes,
+        )
+    nurse_axes[1].plot(chart_monthly_nursing.index, chart_monthly_nursing["nurses_per_shift_min_total"], label="Minimum modeled", color="#176B87", marker=chart_marker)
+    nurse_axes[1].plot(chart_monthly_nursing.index, chart_monthly_nursing["nurses_per_shift_max_total"], label="Maximum modeled", color="#D1495B", marker=chart_marker)
+    nurse_axes[1].set_title("Total nurse requirements", fontsize=16, pad=14)
+    nurse_axes[1].set_ylabel("Nurses per shift")
+    nurse_axes[1].legend()
+    nursing_figure.suptitle(f"Nurse requirements | {chart_period_label}", fontsize=18)
 
-    axes[2, 0].plot(monthly_view.index, monthly_view["occupied_clean_hours"], label="Occupied-room cleaning")
-    axes[2, 0].plot(monthly_view.index, monthly_view["discharge_clean_hours"], label="Discharge cleaning")
-    axes[2, 0].plot(monthly_view.index, monthly_view["mean_evs_hours"], label="Total estimated EVS workload", linewidth=2)
-    axes[2, 0].set_title("Estimated EVS cleaning workload")
-    axes[2, 0].set_ylabel("Mean hours per day")
-    axes[2, 0].legend(fontsize=8)
+    for axis in [*bed_axes, *nurse_axes]:
+        axis.xaxis.set_major_locator(YearLocator())
+        axis.xaxis.set_major_formatter(DateFormatter("%Y"))
+        axis.tick_params(axis="x", labelbottom=True)
+
+    evs_figure, evs_axis = plt.subplots(figsize=(10, 5))
+    evs_axis.plot(chart_monthly_view.index, chart_monthly_view["occupied_clean_hours"], label="Occupied-room cleaning", marker=chart_marker)
+    evs_axis.plot(chart_monthly_view.index, chart_monthly_view["discharge_clean_hours"], label="Discharge cleaning", marker=chart_marker)
+    evs_axis.plot(chart_monthly_view.index, chart_monthly_view["mean_evs_hours"], label="Total estimated EVS workload", linewidth=2, marker=chart_marker)
+    evs_axis.set_title(f"Estimated EVS cleaning workload | {chart_period_label}")
+    evs_axis.set_ylabel("Mean hours per day")
+    evs_axis.legend(fontsize=8)
 
     selected_appointments = appointments.loc[
-        appointments["date"].isin(selected_data["date"])
+        appointments["date"].dt.to_period("M").between(
+            chart_start_month, chart_end_month
+        )
     ]
     average_arrivals_by_hour = (
         selected_appointments.groupby("arrival_hour").size().reindex(range(24), fill_value=0)
-        / selected_data["date"].nunique()
+        / chart_data["date"].nunique()
     )
-    axes[2, 1].bar(range(24), average_arrivals_by_hour, color="#E07A5F")
-    axes[2, 1].set_title(f"Synthetic appointments by hour ({period_key})")
-    axes[2, 1].set_xlabel("Hour of day")
-    axes[2, 1].set_ylabel("Mean arrivals per day")
-    figure.suptitle("Hospital Current State | Historical Operational View", fontsize=15)
-    figure.tight_layout()
-    figure.savefig(
-        output_dir / f"hospital_current_state_{period_key}.png",
-        dpi=160,
-        bbox_inches="tight",
-    )
-    figure
-    return (figure,)
+    appointments_figure, appointments_axis = plt.subplots(figsize=(10, 5))
+    appointments_axis.bar(range(24), average_arrivals_by_hour, color="#E07A5F")
+    appointments_axis.set_title(f"Synthetic appointments by hour | {chart_period_label}")
+    appointments_axis.set_xlabel("Hour of day")
+    appointments_axis.set_ylabel("Mean arrivals per day")
+
+    chart_figures = {
+        "Bed occupancy": beds_figure,
+        "Nurse requirements": nursing_figure,
+        "EVS cleaning workload": evs_figure,
+        "Appointments by hour": appointments_figure,
+    }
+    for category, category_figure in chart_figures.items():
+        if category in {"Bed occupancy", "Nurse requirements"}:
+            category_figure.tight_layout(
+                rect=(0, 0, 1, 0.94), pad=2.0, h_pad=2.8
+            )
+        else:
+            category_figure.tight_layout()
+        category_figure.savefig(
+            output_dir / f"hospital_{category.lower().replace(' ', '_')}_{chart_period_key}.png",
+            dpi=160,
+            bbox_inches="tight",
+        )
+
+    chart_tab_contents = {
+        **chart_figures,
+        "Nurse requirements": mo.vstack([nurse_unit_filter, nursing_figure]),
+    }
+    chart_tabs = mo.ui.tabs(chart_tab_contents, orientation="horizontal")
+    chart_tabs
+    return (chart_tabs,)
 
 
 if __name__ == "__main__":
