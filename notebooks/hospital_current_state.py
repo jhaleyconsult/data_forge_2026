@@ -17,6 +17,32 @@ def _():
 
 
 @app.cell
+def _(mo):
+    mo.md(
+        "\n".join(
+            [
+                "# Hospital Operations",
+                "",
+                "**Historical current-state overview | 2017-2024**",
+                "",
+                "A retrospective view of bed occupancy, modeled nurse requirements,",
+                "estimated environmental services (EVS) cleaning workload, and synthetic",
+                "appointment patterns across a 905-bed hospital model based on VCU Medical Center.",
+                "",
+                "This view provides operating context for the planned bed-turnover simulation;",
+                "it does not report live hospital conditions or measure the impact of the EVS alert intervention.",
+                "",
+                "**Data note:** Source inputs are monthly Virginia state aggregates. Daily rows are",
+                "reconstructed estimates, not patient-level observations. Nurse requirements are",
+                "ratio-modeled, cleaning workload is estimated, and appointment patterns are synthetic.",
+                "The charts should not be interpreted as observed daily or hourly hospital performance.",
+            ]
+        )
+    )
+    return
+
+
+@app.cell
 def _(Path, pd):
     project_root = next(
         (
@@ -456,7 +482,7 @@ def _(appointments, end_month_filter, mo, nurse_unit_filter, operational, output
         axis.xaxis.set_major_formatter(DateFormatter("%Y"))
         axis.tick_params(axis="x", labelbottom=True)
 
-    evs_figure, evs_axis = plt.subplots(figsize=(10, 5))
+    evs_figure, evs_axis = plt.subplots(figsize=(14, 5))
     evs_axis.plot(chart_monthly_view.index, chart_monthly_view["occupied_clean_hours"], label="Occupied-room cleaning", marker=chart_marker)
     evs_axis.plot(chart_monthly_view.index, chart_monthly_view["discharge_clean_hours"], label="Discharge cleaning", marker=chart_marker)
     evs_axis.plot(chart_monthly_view.index, chart_monthly_view["mean_evs_hours"], label="Total estimated EVS workload", linewidth=2, marker=chart_marker)
@@ -473,7 +499,7 @@ def _(appointments, end_month_filter, mo, nurse_unit_filter, operational, output
         selected_appointments.groupby("arrival_hour").size().reindex(range(24), fill_value=0)
         / chart_data["date"].nunique()
     )
-    appointments_figure, appointments_axis = plt.subplots(figsize=(10, 5))
+    appointments_figure, appointments_axis = plt.subplots(figsize=(14, 5))
     appointments_axis.bar(range(24), average_arrivals_by_hour, color="#E07A5F")
     appointments_axis.set_title(f"Synthetic appointments by hour | {chart_period_label}")
     appointments_axis.set_xlabel("Hour of day")
