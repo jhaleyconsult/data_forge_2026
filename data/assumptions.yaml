@@ -186,12 +186,116 @@ hospital_layout:
     # ASSUMPTION: 40-room ward floors; one 25-room floor makes the total exactly 905.
     ward: {floor_count: 19, rooms_per_floor: 40}
     ward_partial: {floor_count: 1, rooms_per_floor: 25}
-  # ASSUMPTION: rooms arranged on 4 walls per floor; one wall is one cleaner's round.
-  walls_per_floor: 4
+  # ASSUMPTION: each cleaner's assigned hall contains 10 rooms; the remaining rooms
+  # on a floor form a partial hall.
+  rooms_per_hall: 10
   # ASSUMPTION: ward categories (med-surg, delivery, newborn, viral) share ward floors flexibly.
   ward_floors_shared_by_categories: true
+  patient_room_assignment:
+    # ASSUMPTION: synthetic patients are randomly assigned to an eligible room;
+    # the appointment category represents a care category, not a clinical diagnosis.
+    method: "random_eligible_room"
+    patient_id_source: "data/synthetic_appointments.csv:appointment_id"
+    condition_category_source: "data/synthetic_appointments.csv:category"
+    seed: 2026
   # Reference only: no ED visit data, so ED rooms are not simulated.
   emergency_department_rooms_reference: 80
+
+simulation_pilot:
+  # USER DECISION: initial pilot is limited to one floor and one cleaner.
+  floor_count: 1
+  cleaner_count: 1
+  modeled_room_count: 10
+  # ASSUMPTION: absent a selected unit type, this is a synthetic hospital-mix
+  # hall, not a claim about a real VCU floor's category composition.
+  floor_type: "synthetic_hospital_mix"
+  patient_arrival_source: "data/synthetic_appointments.csv"
+  initial_occupancy_source: "data/vcu_master_daily.csv"
+  date: "2017-01-02"
+  # ASSUMPTION: initialize occupied rooms by rounding the hospital-wide
+  # occupied/staffed-bed fraction to the nearest whole pilot room.
+  initial_occupancy_method: "round(total_occupied_beds / total_staffed_beds * modeled_room_count)"
+  # ASSUMPTION: the pilot has no patient-level roster, so assign initial
+  # occupant categories in proportion to observed daily category census.
+  initial_patient_category_method: "sample_proportional_to_daily_category_occupancy"
+  # ASSUMPTION: represent patients already in beds using a stationary residual
+  # stay: length-biased total LOS, then a uniformly sampled elapsed fraction.
+  initial_patient_remaining_los_method: "length_biased_lognormal_then_uniform_elapsed"
+  # ASSUMPTION: thin hospital-wide appointments at 10 pilot rooms / 905 staffed
+  # beds; resulting arrivals are a scaled synthetic sample, not floor-specific data.
+  arrival_sampling_method: "bernoulli_thinning"
+  arrival_sampling_probability: 0.011049724
+  # ASSUMPTION: patients start their LOS clock when admitted to a room, after
+  # any bed queue wait.
+  length_of_stay_starts_at_admission: true
+  # ASSUMPTION: when multiple usable rooms exist, assign the first by room ID.
+  room_assignment_order: "room_id_ascending"
+  # ASSUMPTION: ties among arrivals at the same timestamp use synthetic ID order.
+  arrival_sort_keys: ["date", "check_in_time", "appointment_id"]
+  patient_length_of_stay:
+    distribution: "lognormal"
+    # ASSUMPTION: no patient-level LOS distribution or CV is available; 0.50
+    # is a provisional right-skewed spread, to be sensitivity-tested.
+    coefficient_of_variation: 0.50
+    sensitivity_coefficients_of_variation: [0.30, 0.50, 1.00]
+    mean_source: "date-specific category avg_los_days in data/vcu_master_daily.csv"
+    intensive_mean_source: "bed_type_estimation.patient_flow.derived_average_los_days"
+    # ASSUMPTION: prevent zero or near-zero stays from producing unstable same-time event chains.
+    minimum_days: 0.1
+  seeds:
+    # ASSUMPTION: separate fixed seeds make each stochastic input reproducible
+    # and prevent changes in one draw sequence from shifting the others.
+    room_occupancy: 2026
+    initial_patient_categories: 2027
+    initial_patient_remaining_los: 2028
+    arrival_sampling: 2029
+    arrival_patient_los: 2030
+    initial_room_dirty_state: 2031
+    cleaning_durations: 2032
+  simulation_engine: "simpy"
+  # ASSUMPTION: follow seven consecutive calendar days from the selected start
+  # date, including all seven day shifts and overnight room waits.
+  simulation_horizon_hours: 168
+  cleaner_shift:
+    # ASSUMPTION: the single pilot cleaner represents the existing day shift.
+    shift_name: "day"
+    start_hour: 7
+    hours: 8
+    productive_hours: 6
+    # ASSUMPTION: the six productive hours are modeled consecutively from 7 AM;
+    # the two nonproductive hours are not assigned separate break periods.
+    productive_start_hour: 7
+    # ASSUMPTION: an active clean that starts before productive hours end is completed,
+    # even if that requires a small amount of overtime.
+    finish_active_clean_after_shift: true
+  # ASSUMPTION: patients in the ED-originating non-elective category receive
+  # emergency queue priority; elective patients follow; all other categories
+  # have the lowest priority because synthetic appointments have no triage field.
+  patient_queue_priority:
+    emergency_categories: ["non_elective_via_ed"]
+    elective_categories: ["elective"]
+    order: ["emergency", "elective", "other"]
+    # ASSUMPTION: patients with the same priority are admitted FIFO.
+    tie_breaker: "arrival_order"
+  # ASSUMPTION: no nurse-ready or checkout delay data exists; the pilot performs
+  # current_care and check_out at the generated end of stay.
+  discharge_processing_delay_minutes: 0
+  # ASSUMPTION: every discharged patient's room enters the cleaning cycle;
+  # the 50% dirty probability applies only to initially unoccupied rooms.
+  # ASSUMPTION: an initial dirty synthetic-mix room uses the med-surg discharge
+  # clean estimate because it has no recorded prior patient category.
+  default_cleaning_unit_for_unassigned_room: "med_surg"
+  # These source choices affect the results produced by each seed. Changing a
+  # seed or its listed inputs changes that stream; cleaning-duration means do
+  # not affect patient/room random draws.
+  seed_dependencies:
+    room_occupancy: ["date", "modeled_room_count", "initial_occupancy_method"]
+    initial_patient_categories: ["date", "initial_patient_category_method", "daily category occupancy", "room_assignment_order"]
+    initial_patient_remaining_los: ["patient_length_of_stay.distribution", "coefficient_of_variation", "initial_patient_remaining_los_method", "category LOS means"]
+    arrival_sampling: ["date", "arrival_sampling_probability", "patient_arrival_source", "arrival_sort_keys", "appointment_arrivals.seed"]
+    arrival_patient_los: ["patient_length_of_stay.distribution", "coefficient_of_variation", "minimum_days", "selected appointment categories and category LOS means"]
+    initial_room_dirty_state: ["date", "modeled_room_count", "probability_unoccupied_room_needs_cleaning", "room_assignment_order"]
+    cleaning_durations: ["room_cleaning.sampling.distribution", "room_cleaning.sampling.coefficient_of_variation", "room_cleaning.unit_minutes", "default_cleaning_unit_for_unassigned_room", "evs_staffing.baseline_rounds.room_visit_order"]
 
 evs_staffing:
   # ASSUMPTION: three 8-hour EVS shifts; no VCU EVS roster available.
@@ -213,6 +317,27 @@ evs_staffing:
     # passes it; one pass per room per hour gives a uniform 0-60 min `needs_cleaning` wait.
     round_interval_minutes: 60
     wait_distribution: "uniform"
+    # ASSUMPTION: without a floor plan, visit rooms in ascending synthetic room ID.
+    room_visit_order: "room_id_ascending"
+    room_need_sampling:
+      # ASSUMPTION: only unoccupied rooms are eligible to be checked/cleaned;
+      # occupancy does not tell whether an eligible room is actually dirty.
+      method: "sample_persistent_room_dirty_state"
+      sample_when: ["simulation_initialization"]
+      state_persists_until_cleaning: true
+      # ASSUMPTION: use the user-selected 50% for now; no room-level observations exist.
+      probability_unoccupied_room_needs_cleaning: 0.50
+      seed: "simulation_pilot.seeds.initial_room_dirty_state"
+  cleaner_assignment:
+    # ASSUMPTION: each cleaner stays in one assigned 10-room hall; finishing early
+    # does not result in a move to another hall or floor.
+    remains_in_assigned_hall: true
+    changes_floor_after_round: false
+    # ASSUMPTION: a quick check of an already-clean room costs 2 minutes,
+    # including the brief inspection and moving on; no local time study exists.
+    unnecessary_check_duration_minutes: 2
+    # ASSUMPTION: test sensitivity to the unmeasured wasted-check duration.
+    unnecessary_check_sensitivity_minutes: [1, 2, 5]
   intervention:
     # Alert sent when the bed enters `discharge_pending`; cleaning starts at departure if a cleaner is free.
     notify_on_state: "discharge_pending"
