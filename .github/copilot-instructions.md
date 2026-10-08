@@ -13,7 +13,8 @@ Step 2: Baseline simulation (see `README.md`).
 
 ## Unit being modeled
 Whole hospital — every section with data (ICU, med-surg categories, delivery,
-newborn). ED and OR are not modeled until visit/case data exists.
+newborn). ED flow is specified for a future simulation extension but is not
+implemented in the current pilot; OR remains out of scope until case data exists.
 
 ## Stack
 In use: Python 3.13, uv, FastAPI, Uvicorn, Docker/Dev Container, JupyterLab,
@@ -45,6 +46,13 @@ in the container.
 - Any assumption not backed by real data (CV values, cleaning time, ED
   split %) must be flagged with a `# ASSUMPTION:` comment in code and
   listed in `data/assumptions.yaml`, not silently hardcoded.
+- ED flow direction: every ED arrival gets an ED bed for 1-6 hours (median
+  2.5); 15% transfer to a ward and 85% leave the hospital after the ED stay.
+  Scheduled procedures/admissions go directly to wards. These are
+  user-specified model assumptions, not observed ED data. ED visit counts may
+  be inferred from reconstructed
+  `admissions_non_elective_via_ed / 0.15`, but arrival timestamps,
+  stay-distribution spread, ED capacity, and EVS coverage remain unresolved.
 - In `README.md` and other team-facing text, explain modeling terms in plain
   language (e.g. "most stays are near typical, a few run much longer" rather
   than only "log-normal LOS").

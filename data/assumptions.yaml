@@ -53,6 +53,36 @@ bed_type_estimation:
     # ASSUMPTION: Use the user-reported 28% for ED-originating inpatient admissions
     # routed to ICU, not for all ED visits; source and original denominator are unverified.
     ed_originating_inpatient_admissions_to_icu_share: 0.28
+  emergency_department_flow:
+    # ASSUMPTION: User specifies that every ED arrival receives an ED bed,
+    # stays 1-6 hours (median 2.5 hours), and 15% are admitted to a ward.
+    enabled_for_future_simulation: true
+    bed_assignment: "immediate; no ED bed queue modeled"
+    visit_los_hours:
+      minimum: 1.0
+      median: 2.5
+      maximum: 6.0
+      # ASSUMPTION: project rules require right-skewed stays; a bounded
+      # log-normal is the planned family, but its spread has not been supplied.
+      distribution: "bounded_lognormal"
+      coefficient_of_variation: null
+    # ASSUMPTION: User-specified share; ED visits not resulting in admission
+    # are discharged after their ED stay.
+    ward_admission_share: 0.15
+    discharge_share: 0.85
+    ward_admission_category: "non_elective_via_ed"
+    ward_stay_starts_after_ed_transfer: true
+    scheduled_admissions_bypass_ed: true
+    # ASSUMPTION: ED visit counts can be estimated from reconstructed via-ED
+    # ward admissions, but this does not provide observed visit timestamps.
+    visit_count_method: "admissions_non_elective_via_ed / ward_admission_share"
+    visit_arrival_timing: "not_available; requires a documented timing assumption or data"
+    # The existing 80-room figure remains a reference, not a confirmed capacity.
+    room_capacity: null
+    evs_staffing: null
+    # ASSUMPTION: ED arrival counts, stay spread, room capacity, and EVS
+    # coverage are not present in the source data and need team review.
+    implementation_status: "specified_not_implemented"
   category_occupancy:
     categories:
       - newborn
@@ -160,8 +190,9 @@ room_cleaning:
     # ASSUMPTION: no L&D or pediatric values supplied; reuse med-surg times.
     labor_delivery: {occupied: 30, discharge: 45}
     pediatric: {occupied: 30, discharge: 45}
-  # Reference only: no ED or OR room data exists in the dataset, so these are not used yet.
+  # ED/OR durations remain estimates; ED turnover is not yet connected to the simulation.
   unmodeled_room_minutes:
+    # ASSUMPTION: Existing 15-minute ED turnover estimate is unverified; confirm before use.
     emergency_room: {turnover: 15}
     operating_room: {turnover: 20, terminal: 60}
   # Reuses nurse_staffing.category_to_unit for category -> unit mapping.

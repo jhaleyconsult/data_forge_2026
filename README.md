@@ -113,6 +113,13 @@ daily census (2024 calibration).
   that are usually near average but sometimes run much longer (see
   [Modeling rules](#rules-everyone-follows)); arrivals that are busier in the
   morning; a limited number of cleaners on 60-minute rounds.
+- **ER flow (team direction; not implemented in the current pilot):** patients
+  arriving through the ER receive an ER bed, stay 1–6 hours (median 2.5 hours),
+  and then either transfer to a ward (15%) or leave the hospital (85%).
+  Scheduled procedures/admissions go directly to wards and do not occupy ER
+  beds. The current pilot remains ward-only; see
+  [data/assumptions.yaml](data/assumptions.yaml) for the modeled boundary and
+  unresolved inputs.
 - **Pilot run:** `python -m src.sim` runs a 168-hour window with one day-shift
   cleaner each day (7 AM–3 PM), modeled as six consecutive productive hours
   beginning at 7 AM. Arrivals and category LOS means are drawn from each
@@ -241,7 +248,7 @@ roster is available). Values live in [data/assumptions.yaml](data/assumptions.ya
 | ICU | 4 × 30 bays | 120 (covers 2017–2024 peak ICU census of 120) |
 | Ward | 19 × 40 rooms + 1 × 25 rooms | 785 (peak ward census 660) |
 | **Total** | | **905** (observed staffed beds) |
-| ED | 80 rooms, reference only | Not simulated |
+| ED | 80 rooms, reference only | ER flow specified; not yet simulated |
 
 EVS: three 8-hour shifts, about 6 hours of hands-on cleaning per shift.
 
@@ -258,8 +265,13 @@ verified until Step 2.
 
 ## Known Gaps (Who the Model Leaves Out)
 
-- **ED and OR are not modeled.** ED patients are the ones who board, so bed
-  wait is only a stand-in.
+- **The ED flow is specified but not implemented.** No ED visit counts or
+  arrival timestamps are available. The proposed visit count is inferred from
+  reconstructed via-ED ward admissions and the user-specified 15% admission
+  share; it is not an observed ED census. The proposed model gives every ED
+  arrival an immediate bed, so it does not estimate waits for an ED bed or
+  boarding. The ED stay-distribution spread, actual room capacity, and EVS
+  coverage remain unresolved. OR is not modeled.
 - **Daily data is reconstructed** from monthly totals; day-to-day swings
   (about ±3%) are simulated, not observed.
 - **Cleaning times are unverified** estimates; L&D and pediatric reuse
@@ -282,7 +294,9 @@ baseline to compare against.
 - **Elective scheduling optimization:** place elective admissions using a
   longer-than-typical planned stay (the length 75–80% of patients finish
   within) so they avoid the afternoon discharge crunch.
-- **ED model:** needs ED visit data.
+- **ED extension:** use the documented flow assumptions; review visit timing,
+  stay-distribution spread, whether the 80-room reference is a capacity limit,
+  and ED EVS coverage before implementation.
 - **Earlier discharge times** (for example, discharge-before-noon) as a
   separate scenario.
 - **EHR integration:** read real admit/discharge events instead of the demo API.
