@@ -54,6 +54,7 @@ in the container.
 data/assumptions.yaml
 notebooks/            # numbered per step, e.g. 02_baseline_simulation.ipynb
 src/generators.py     # Step 1
+src/week_sim.py       # Steps 2-3: shared check_in / current_care / check_out
 src/events.py         # Steps 2-3: shared check_in / current_care / check_out
 src/api/              # Step 3: FastAPI route modules and JSON state file
 src/sim.py            # Step 2

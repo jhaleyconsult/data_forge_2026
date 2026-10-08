@@ -86,7 +86,7 @@ daily census (2024 calibration).
 
 ### Step 2: Baseline simulation (in progress)
 
-- **Build:** `src/events.py` (bed state changes, shared with Step 3) and
+- **Build:** `src/week_sim.py` (bed state changes, shared with Step 3) and
   `src/sim.py` (the SimPy simulation). Bed transitions are kept independent of
   SimPy so the API can reuse them without depending on the simulation engine.
 - **Pilot scope:** a 10-room synthetic hospital-mix hall, one cleaner, starting
@@ -120,8 +120,10 @@ daily census (2024 calibration).
   and may extend beyond that shift. The schedule and zero discharge-processing
   delay are assumptions; this single-hall run validates the pipeline, not
   hospital-wide performance. The runner returns the event log, cleaner
-  activity, and metrics in memory; results storage remains an open team
-  decision.
+  activity, metrics, and a per-room/per-day table of state-hours and turnover
+  counts in memory; results storage remains an open team decision. The CLI
+  prints this daily room table after the overall metrics. The current run's
+  shareable table is [data/pilot_daily_room_summary_2017-01-02.csv](data/pilot_daily_room_summary_2017-01-02.csv).
 - **Draft validation plan — for team review, not yet accepted:**
   1. Confirm input coverage and scaling: all seven simulated dates have daily
      census and synthetic appointments; starting census maps to 7/10 occupied
@@ -170,7 +172,7 @@ daily census (2024 calibration).
 
 ### Step 3: Intervention (planned)
 
-- **Shared functions** in `src/events.py`: `check_in()`, `current_care()`,
+- **Shared functions** in `src/week_sim.py`: `check_in()`, `current_care()`,
   `check_out()`. Both the simulation and the API call these so they cannot
   drift apart.
 - **API demo** (`src/api/`, FastAPI), pingable from a terminal. The workflow
@@ -354,7 +356,7 @@ work is treated as final. Record the agreed choice here when made.
 
 | Decision | Status / feedback requested |
 |---|---|
-| Simulation approach (Step 2) | **Decided:** SimPy, with engine-independent bed transition functions in `src/events.py`. |
+| Simulation approach (Step 2) | **Decided:** SimPy, with engine-independent bed transition functions in `src/week_sim.py`. |
 | How simulation results are stored | **Feedback requested:** choose a result format/storage approach. Each bed state change needs bed, patient, state, and time so the four metrics can be computed; the current runner returns results in memory. |
 | API framework (Step 3) | **Decided:** FastAPI; API implementation is in a separate branch. |
 | Dashboard / visualization tool (Step 4) | **Feedback requested:** choose a tool that can show before/after results clearly to non-technical viewers. |
@@ -387,6 +389,7 @@ work is treated as final. Record the agreed choice here when made.
 │   └── occupied_beds_forecast_decisions.md    # Methodological decision records
 ├── src/
 │   ├── generators.py                          # Step 1 data generators
+│   ├── week_sim.py                            # Step 2–3: shared bed state changes
 │   ├── api/                                   # Step 3 FastAPI app and route modules
 │   ├── events.py                              # Shared bed-state transitions
 │   └── sim.py                                 # Planned (Step 2): simulation

@@ -32,6 +32,10 @@ class PilotSimulationTests(unittest.TestCase):
 
         pd.testing.assert_frame_equal(first.event_log, second.event_log)
         pd.testing.assert_frame_equal(first.cleaner_activity, second.cleaner_activity)
+        pd.testing.assert_frame_equal(
+            first.daily_room_summary,
+            second.daily_room_summary,
+        )
         self.assertEqual(first.metrics, second.metrics)
         self.assertEqual(first.metrics["initial_rooms"], 10)
         self.assertEqual(first.metrics["initial_occupied_rooms"], 7)
@@ -48,6 +52,31 @@ class PilotSimulationTests(unittest.TestCase):
         self.assertEqual(
             first.cleaner_activity["start_datetime"].dt.date.nunique(),
             7,
+        )
+        self.assertEqual(len(first.daily_room_summary), 70)
+        self.assertEqual(
+            first.daily_room_summary.groupby("date")["room_id"].nunique().tolist(),
+            [10] * 7,
+        )
+        state_hour_columns = [
+            "available_hours",
+            "occupied_hours",
+            "discharge_pending_hours",
+            "needs_cleaning_hours",
+            "cleaning_hours",
+        ]
+        daily_room_hours = first.daily_room_summary[state_hour_columns].sum(axis=1)
+        self.assertTrue((daily_room_hours.sub(24).abs() < 1e-8).all())
+        self.assertTrue(
+            first.daily_room_summary["ending_state"].isin(
+                {
+                    "available",
+                    "occupied",
+                    "discharge_pending",
+                    "needs_cleaning",
+                    "cleaning",
+                }
+            ).all()
         )
         self.assertGreater(first.metrics["ghost_room_minutes"], 0)
         self.assertGreater(first.metrics["idle_bed_hours"], 0)
