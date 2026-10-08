@@ -1,0 +1,11 @@
+metric,value,unit
+Date,2022-12-31,latest in selected period
+Staffed beds,905,beds
+Occupied beds,684.0,beds
+Available beds,221.0,beds
+Occupancy,75.6,%
+"Nurses required, minimum",175,per shift; modeled
+"Nurses required, maximum",263,per shift; modeled
+Patients per nurse at minimum staffing,3.91,derived ratio
+EVS cleaning workload,456.2,estimated hours per day
+Synthetic appointments,123,arrivals per day

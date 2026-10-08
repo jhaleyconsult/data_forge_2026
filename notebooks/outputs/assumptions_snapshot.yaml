@@ -1,0 +1,96 @@
+business_impact:
+  faster_turnover_may_increase_revenue: true
+nurse_staffing:
+  source_dataset: data/vcu_master_daily.csv
+  output_dataset: data/vcu_nurse_requirements_daily.csv
+  unit_ratios:
+    icu:
+      patients_per_nurse_min: 1
+      patients_per_nurse_max: 2
+    med_surg:
+      patients_per_nurse_min: 4
+      patients_per_nurse_max: 5
+    labor_delivery:
+      patients_per_nurse_min: 1
+      patients_per_nurse_max: 2
+    pediatric:
+      patients_per_nurse_min: 3
+      patients_per_nurse_max: 4
+  emergency_department_modeled: false
+  category_to_unit:
+    intensive: icu
+    delivery: labor_delivery
+    newborn: pediatric
+    non_elective_via_ed: med_surg
+    non_elective_other: med_surg
+    elective: med_surg
+    covid_19: med_surg
+    influenza: med_surg
+    other_viral: med_surg
+  shifts_per_day: 2
+  rounding: ceil_per_unit
+  missing_census_as_zero: true
+room_cleaning:
+  output_dataset: data/vcu_cleaning_workload_daily.csv
+  source: Practice Guidance for Healthcare Environmental Cleaning, 4th Ed. (estimated)
+  source_verified: false
+  unit_minutes:
+    med_surg:
+      occupied: 30
+      discharge: 45
+    icu:
+      occupied: 40
+      discharge: 60
+    labor_delivery:
+      occupied: 30
+      discharge: 45
+    pediatric:
+      occupied: 30
+      discharge: 45
+  unmodeled_room_minutes:
+    emergency_room:
+      turnover: 15
+    operating_room:
+      turnover: 20
+      terminal: 60
+  occupied_cleans_per_bed_per_day: 1
+  discharge_cleans_source: expected_discharges
+  sampling:
+    distribution: lognormal
+    coefficient_of_variation: 0.3
+    seed: 2026
+  needs_cleaning_wait_minutes: 30
+evs_staffing:
+  shifts:
+    day:
+      start_hour: 7
+      hours: 8
+    evening:
+      start_hour: 15
+      hours: 8
+    night:
+      start_hour: 23
+      hours: 8
+  productive_hours_per_shift: 6
+  cleaners_per_floor:
+    icu:
+      day: 3
+      evening: 1
+      night: 0.5
+    ward:
+      day: 3
+      evening: 1
+      night: 0.5
+    ward_partial:
+      day: 2
+      evening: 1
+      night: 0.5
+  baseline_rounds:
+    round_interval_minutes: 60
+    wait_distribution: uniform
+  intervention:
+    notify_on_state: discharge_pending
+    dispatch_priority:
+    - waiting_emergency
+    - waiting_elective
+    - oldest_discharge
