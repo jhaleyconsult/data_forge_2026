@@ -218,3 +218,8 @@ evs_staffing:
     notify_on_state: "discharge_pending"
     # ASSUMPTION: dispatch order is rooms with a waiting patient first (emergency before elective), then oldest discharge.
     dispatch_priority: ["waiting_emergency", "waiting_elective", "oldest_discharge"]
+
+business_impact:
+  # ASSUMPTION: Faster room turnover may increase staffed-bed availability and allow more admissions, which may increase revenue.
+  # Revenue impact is not quantified or modeled because demand, payer mix, reimbursement, and marginal cost data are unavailable.
+  faster_turnover_may_increase_revenue: true

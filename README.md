@@ -249,6 +249,7 @@ In use today (Step 1):
 | Python 3.13, uv | Language and dependency management |
 | Docker / VS Code Dev Container | Shared, reproducible environment |
 | JupyterLab | Notebooks for exploration and validation |
+| Marimo | Interactive current-state analysis app in `notebooks/hospital_current_state.py` |
 | pandas, NumPy, SciPy | Data generation and distributions |
 | Matplotlib | Notebook charts |
 | PyYAML | Reads [data/assumptions.yaml](data/assumptions.yaml) |
@@ -302,7 +303,8 @@ These are deliberately left for the team. Record each decision here when made.
 ├── api.py                                     # Planned (Step 3): API demo
 ├── app.py                                     # Planned (Step 4): dashboard
 └── notebooks/
-    └── archive/                               # Historical generation notebooks
+  ├── hospital_current_state.py              # Interactive marimo historical view
+  └── archive/                               # Historical generation notebooks
         ├── Health_data_generation_notebook.ipynb
         ├── daily_appointment_data_generator_notebook.ipynb
         └── nurse_constrant_generator_notebook.ipynb
@@ -311,6 +313,14 @@ These are deliberately left for the team. Record each decision here when made.
 ---
 
 ## Getting Started
+
+### Interactive Current-State View
+
+From the workspace root, run:
+
+```powershell
+uv run marimo run notebooks/hospital_current_state.py
+```
 
 ### 1. Build and Run via Container
 
