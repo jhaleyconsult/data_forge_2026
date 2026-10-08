@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.events import (
+from src.week_sim import (
     Patient,
     Room,
     check_in,

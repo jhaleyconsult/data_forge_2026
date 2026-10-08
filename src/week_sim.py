@@ -1,4 +1,4 @@
-"""Framework-independent room and patient state transitions."""
+"""Room and patient state transitions shared by the pilot and API."""
 
 from __future__ import annotations
 

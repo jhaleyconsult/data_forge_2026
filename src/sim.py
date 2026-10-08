@@ -11,7 +11,7 @@ import pandas as pd
 import simpy
 import yaml
 
-from src.events import (
+from src.week_sim import (
     Patient,
     Room,
     check_in,
@@ -29,6 +29,7 @@ class SimulationResult:
 
     event_log: pd.DataFrame
     cleaner_activity: pd.DataFrame
+    daily_room_summary: pd.DataFrame
     metrics: dict[str, float | int]
 
 
@@ -60,6 +61,95 @@ def _ordered_room_ids(room_ids: list[str], order: str) -> list[str]:
     if order != "room_id_ascending":
         raise ValueError(f"unsupported room ordering: {order}")
     return sorted(room_ids)
+
+
+def _build_daily_room_summary(
+    event_log: pd.DataFrame,
+    cleaner_activity: pd.DataFrame,
+    room_ids: list[str],
+    start_date: pd.Timestamp,
+    horizon_minutes: float,
+) -> pd.DataFrame:
+    """Summarize each room's state-hours and turnover activity for each day."""
+    state_columns = {
+        "available": "available_hours",
+        "occupied": "occupied_hours",
+        "discharge_pending": "discharge_pending_hours",
+        "needs_cleaning": "needs_cleaning_hours",
+        "cleaning": "cleaning_hours",
+    }
+    day_count = int(np.ceil(horizon_minutes / 1440))
+    dates = pd.date_range(start_date.normalize(), periods=day_count, freq="D")
+    rows: dict[tuple[pd.Timestamp, str], dict[str, Any]] = {}
+    for day_index, day in enumerate(dates):
+        for room_id in room_ids:
+            rows[(day, room_id)] = {
+                "date": day.date(),
+                "room_id": room_id,
+                "ending_state": "",
+                **{column: 0.0 for column in state_columns.values()},
+                "admissions": 0,
+                "discharges": 0,
+                "cleans_started": 0,
+                "cleans_completed": 0,
+                "unnecessary_checks": 0,
+            }
+
+    grouped_events = {
+        room_id: group.sort_values("time_minutes", kind="stable")
+        for room_id, group in event_log.groupby("room_id", sort=False)
+    }
+    for room_id in room_ids:
+        events = grouped_events.get(room_id)
+        if events is None or events.empty:
+            raise ValueError(f"room {room_id} has no state events")
+        records = list(events.itertuples(index=False))
+        for index, event in enumerate(records):
+            interval_start = float(event.time_minutes)
+            if interval_start >= horizon_minutes:
+                continue
+            interval_end = (
+                float(records[index + 1].time_minutes)
+                if index + 1 < len(records)
+                else horizon_minutes
+            )
+            interval_end = min(interval_end, horizon_minutes)
+            cursor = interval_start
+            while cursor < interval_end:
+                day_index = int(cursor // 1440)
+                day = dates[day_index]
+                segment_end = min(interval_end, (day_index + 1) * 1440)
+                row = rows[(day, room_id)]
+                row[state_columns[event.to_state]] += (segment_end - cursor) / 60
+                row["ending_state"] = event.to_state
+                cursor = segment_end
+
+            if interval_start >= 0:
+                day = dates[int(interval_start // 1440)]
+                row = rows[(day, room_id)]
+                transition = (event.from_state, event.to_state)
+                if transition == ("available", "occupied"):
+                    row["admissions"] += 1
+                elif transition == ("discharge_pending", "needs_cleaning"):
+                    row["discharges"] += 1
+                elif transition == ("needs_cleaning", "cleaning"):
+                    row["cleans_started"] += 1
+                elif transition == ("cleaning", "available"):
+                    row["cleans_completed"] += 1
+
+    if not cleaner_activity.empty:
+        checks = cleaner_activity.loc[
+            cleaner_activity["activity"] == "unnecessary_room_check"
+        ]
+        for activity in checks.itertuples(index=False):
+            day_index = int(float(activity.start_minutes) // 1440)
+            if 0 <= day_index < day_count:
+                rows[(dates[day_index], str(activity.room_id))][
+                    "unnecessary_checks"
+                ] += 1
+
+    summary = pd.DataFrame(rows.values())
+    return summary.sort_values(["date", "room_id"], kind="stable").reset_index(drop=True)
 
 
 def run_pilot_simulation(root: Path | None = None) -> SimulationResult:
@@ -413,6 +503,13 @@ def run_pilot_simulation(root: Path | None = None) -> SimulationResult:
         activity_frame["start_datetime"] = date + pd.to_timedelta(
             activity_frame["start_minutes"], unit="m"
         )
+    daily_room_summary = _build_daily_room_summary(
+        event_frame,
+        activity_frame,
+        list(rooms),
+        date,
+        horizon_minutes,
+    )
     productive_minutes = sum(
         max(
             0.0,
@@ -466,7 +563,7 @@ def run_pilot_simulation(root: Path | None = None) -> SimulationResult:
             room.state == "cleaning" for room in rooms.values()
         ),
     }
-    return SimulationResult(event_frame, activity_frame, metrics)
+    return SimulationResult(event_frame, activity_frame, daily_room_summary, metrics)
 
 
 if __name__ == "__main__":
@@ -478,3 +575,10 @@ if __name__ == "__main__":
     )
     for metric, value in result.metrics.items():
         print(f"{metric}: {value}")
+    print("\nDaily room table (hours by state):")
+    print(
+        result.daily_room_summary.to_string(
+            index=False,
+            float_format=lambda value: f"{value:.2f}",
+        )
+    )

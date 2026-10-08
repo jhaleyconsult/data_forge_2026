@@ -54,7 +54,7 @@ proposed), dashboard tool, GitHub credentials in the container.
 data/assumptions.yaml
 notebooks/            # numbered per step, e.g. 02_baseline_simulation.ipynb
 src/generators.py     # Step 1
-src/events.py         # Steps 2-3: shared check_in / current_care / check_out
+src/week_sim.py       # Steps 2-3: shared check_in / current_care / check_out
 src/sim.py            # Step 2
 api.py                # Step 3
 app.py                # Step 4 dashboard
