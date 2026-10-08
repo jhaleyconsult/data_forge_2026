@@ -1,3 +1,4 @@
 *.duckdb.wal
 .pyc
 __pycache__/
+data/api_state.json
