@@ -6,7 +6,12 @@
   "mounts": [
     "source=data-forge-2026-config,target=/root/.config,type=volume"
   ],
-  "forwardPorts": [8888, 8501],
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+  "forwardPorts": [8888, 8501, 5173],
   "customizations": {
     "vscode": {
       "settings": { "python.defaultInterpreterPath": "/opt/venv/bin/python" },

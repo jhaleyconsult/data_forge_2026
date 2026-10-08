@@ -396,7 +396,7 @@ work is treated as final. Record the agreed choice here when made.
 | Simulation approach (Step 2) | **Decided:** SimPy, with engine-independent bed transition functions in `src/week_sim.py`. |
 | How simulation results are stored | **Feedback requested:** choose a result format/storage approach. Each bed state change needs bed, patient, state, and time so the four metrics can be computed; the current runner returns results in memory. |
 | API framework (Step 3) | **Decided:** FastAPI; API implementation is in a separate branch. |
-| Dashboard / visualization tool (Step 4) | **Feedback requested:** choose a tool that can show before/after results clearly to non-technical viewers. |
+| Dashboard / visualization tool (Step 4) | **Prototype decided:** React + shadcn in `frontend/`. Final dashboard selection remains open. |
 | GitHub credentials in the container | **Decided:** git and the GitHub CLI are in the image; each person signs in with `gh auth login` (see [Getting Started](#3-using-git-from-the-container)). Never put tokens in the Dockerfile, image, or repository. |
 | Unused dependencies | **Feedback requested:** keep or remove unused `duckdb`, `ortools`, `plotly`, `streamlit`, and any other packages not yet used. |
 | Baseline validation criteria | **Feedback requested:** agree on acceptable tolerances for aggregate comparisons, and whether validation needs more start dates or independent seeds. The current week-long, fixed-seed pilot is a mechanics check, not a performance validation. |
