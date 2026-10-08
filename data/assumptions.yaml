@@ -375,6 +375,29 @@ evs_staffing:
     # ASSUMPTION: dispatch order is rooms with a waiting patient first (emergency before elective), then oldest discharge.
     dispatch_priority: ["waiting_emergency", "waiting_elective", "oldest_discharge"]
 
+turnover_estimate:
+  # Hackathon shortcut (no state machine): Monte Carlo of one room's wait, src/turnover_estimate.py.
+  seed: 2026
+  # ASSUMPTION: perfect-world alerts; every discharge_pending alert is delivered, correct, and acted on.
+  alert_reliability: 1.0
+  # ASSUMPTION: rounds continue after the change, so a room waits no longer than under rounds.
+  rounds_continue: true
+  # ASSUMPTION: nurse "ready" to patient out averages 30 min; CV 0.5 is a guess (right-skewed, log-normal).
+  ready_to_leave_gap_minutes: {mean: 30, cv: 0.5}
+  # ASSUMPTION: a free cleaner reaches the room 5 min after the alert.
+  alert_response_minutes: 5
+  # ASSUMPTION: if all cleaners are busy (probability = shift utilization), the alert waits for the
+  # current clean to finish: uniform 0 to one discharge-clean duration (med-surg, 45 min).
+  busy_cleaner_model: "probability_equals_shift_utilization"
+  # ASSUMPTION: no hourly discharge data; most discharges happen on day shift.
+  discharge_share_by_shift: {day: 0.60, evening: 0.30, night: 0.10}
+  # ASSUMPTION: no hourly cleaning data; workload follows discharge timing plus a daily-clean share.
+  workload_share_by_shift: {day: 0.55, evening: 0.30, night: 0.15}
+  # Floors by staffing type in hospital_layout (4 ICU, 19 ward, 1 partial ward).
+  floor_counts: {icu: 4, ward: 19, ward_partial: 1}
+  # Baseline wait uses the 60-minute rounds above; the 60 min is itself an unverified estimate.
+  baseline_round_interval_source: "evs_staffing.baseline_rounds.round_interval_minutes"
+
 business_impact:
   # ASSUMPTION: Faster room turnover may increase staffed-bed availability and allow more admissions, which may increase revenue.
   # Revenue impact is not quantified or modeled because demand, payer mix, reimbursement, and marginal cost data are unavailable.

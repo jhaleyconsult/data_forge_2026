@@ -219,6 +219,28 @@ daily census (2024 calibration).
 - **Done when:** a terminal sequence moves one bed through every state and
   emits the EVS alert, and `src/sim.py` uses the same functions.
 
+### Hackathon shortcut: turnover estimate (replaces the state machine)
+
+Because of time, the full event-driven state machine is cut. Instead,
+`src/turnover_estimate.py` estimates one room's wait under 60-minute rounds
+versus an alert at `discharge_pending` (run `uv run python -m src.turnover_estimate`).
+Plain language: the cleaner is alerted when the nurse marks the patient ready,
+but can only start once the patient leaves; the saving is whatever dirty-room
+waiting that overlap removes.
+
+- **Inputs** (all in `turnover_estimate` in `data/assumptions.yaml`): patient
+  leaves 30 min after "ready" on average, a free cleaner arrives in 5 min,
+  alerts always work, rounds continue, and a busy cleaner delays the start by
+  up to one clean. Busy chance is taken from each shift's cleaner utilization.
+- **Outputs:** minutes saved per turnover and bed-hours recovered per day,
+  by shift (day / evening / night) and overall.
+- **Current result:** about 26 min saved per turnover and about 55 bed-hours
+  per day recovered (day 27 min, evening and night 25 min).
+- **Limits:** every key input is an assumption, and the shift splits are
+  guesses. The perfect-alert assumption and a busy-cleaner model that ignores
+  queues likely overstate the evening and night saving, when 0.5-1 cleaners per
+  floor are on duty. Treat results as "if these hold", not observed.
+
 ### Step 4: Compare (planned)
 
 - Run baseline and intervention with the **same seeds** and multiple
