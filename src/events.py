@@ -1,138 +1,72 @@
-"""Framework-independent room and patient state transitions."""
+"""Shared patient bed-state transitions for the API and simulation."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from typing import Literal, Protocol
 
-
-BED_STATES = (
+BedStatus = Literal[
     "available",
     "occupied",
     "discharge_pending",
     "needs_cleaning",
     "cleaning",
-)
-_ALLOWED_TRANSITIONS = {
-    "available": "occupied",
-    "occupied": "discharge_pending",
-    "discharge_pending": "needs_cleaning",
-    "needs_cleaning": "cleaning",
-    "cleaning": "available",
-}
+]
+CareUpdate = Literal["ready", "needs_more_time"]
 
 
-@dataclass
-class Patient:
-    """A synthetic inpatient and the time they need a bed."""
+class StatusStore(Protocol):
+    """Storage interface used by bed-state transition functions."""
 
-    patient_id: str
-    care_category: str
-    priority: str
-    length_of_stay_minutes: float
+    def get_status(self, patient_id: str) -> BedStatus | None:
+        """Return a patient's current status, if one is recorded."""
 
-
-@dataclass
-class Room:
-    """A pilot room with its current bed state and patient."""
-
-    room_id: str
-    state: str
-    patient: Patient | None = None
-    cleaning_category: str | None = None
-    last_patient_id: str = ""
-    needs_cleaning_since: float | None = None
-    reserved_for_check: bool = False
+    def set_status(self, patient_id: str, status: BedStatus) -> None:
+        """Persist a patient's current status."""
 
 
-def _record_transition(
-    room: Room,
-    next_state: str,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-    trigger: str,
-) -> None:
-    if next_state not in BED_STATES:
-        raise ValueError(f"unknown bed state: {next_state}")
-    if _ALLOWED_TRANSITIONS.get(room.state) != next_state:
-        raise ValueError(
-            f"invalid room transition: {room.state} -> {next_state}"
-        )
-    event_log.append({
-        "time_minutes": time_minutes,
-        "room_id": room.room_id,
-        "patient_id": (
-            room.patient.patient_id if room.patient else room.last_patient_id
-        ),
-        "from_state": room.state,
-        "to_state": next_state,
-        "trigger": trigger,
-    })
-    room.state = next_state
-    if next_state == "needs_cleaning":
-        room.needs_cleaning_since = time_minutes
-    elif next_state == "available":
-        room.needs_cleaning_since = None
-
-
-def check_in(
-    room: Room,
-    patient: Patient,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-) -> None:
-    """Assign a patient to an available room."""
-    if room.state != "available" or room.reserved_for_check:
-        raise ValueError(f"room {room.room_id} is not available for check-in")
-    room.patient = patient
-    room.last_patient_id = patient.patient_id
-    _record_transition(room, "occupied", time_minutes, event_log, "check_in")
+def check_in(store: StatusStore, patient_id: str) -> BedStatus:
+    """Record a patient as occupying a bed."""
+    _validate_patient_id(patient_id)
+    if store.get_status(patient_id) is not None:
+        raise ValueError(f"Patient {patient_id!r} already has a bed status")
+    store.set_status(patient_id, "occupied")
+    return "occupied"
 
 
 def current_care(
-    room: Room,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-) -> None:
-    """Mark the occupied patient's care complete and ready for discharge."""
-    if room.state != "occupied" or room.patient is None:
-        raise ValueError(f"room {room.room_id} has no occupied patient to discharge")
-    _record_transition(room, "discharge_pending", time_minutes, event_log, "current_care")
+    store: StatusStore, patient_id: str, update: CareUpdate
+) -> BedStatus:
+    """Keep an occupied stay active or mark it discharge-pending when ready."""
+    _validate_patient_id(patient_id)
+    status = store.get_status(patient_id)
+    if status is None:
+        raise KeyError(patient_id)
+    if update == "needs_more_time":
+        if status != "occupied":
+            raise ValueError("Current-care updates require an occupied bed")
+        return status
+    if status == "occupied":
+        store.set_status(patient_id, "discharge_pending")
+        return "discharge_pending"
+    if status == "discharge_pending":
+        return status
+    raise ValueError("A patient can only be marked ready while occupying a bed")
 
 
-def check_out(
-    room: Room,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-) -> Patient:
-    """Remove a ready-to-leave patient and mark the room as needing cleaning."""
-    if room.state != "discharge_pending" or room.patient is None:
-        raise ValueError(f"room {room.room_id} has no patient ready for check-out")
-    patient = room.patient
-    room.cleaning_category = patient.care_category
-    _record_transition(room, "needs_cleaning", time_minutes, event_log, "check_out")
-    room.patient = None
-    return patient
+def check_out(store: StatusStore, patient_id: str) -> BedStatus:
+    """Move a discharge-pending patient's bed into the cleaning queue."""
+    _validate_patient_id(patient_id)
+    status = store.get_status(patient_id)
+    if status is None:
+        raise KeyError(patient_id)
+    if status == "needs_cleaning":
+        return status
+    if status != "discharge_pending":
+        raise ValueError("A patient must be discharge-pending before check-out")
+    store.set_status(patient_id, "needs_cleaning")
+    return "needs_cleaning"
 
 
-def start_cleaning(
-    room: Room,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-) -> None:
-    """Start cleaning a room that is waiting for EVS."""
-    if room.state != "needs_cleaning":
-        raise ValueError(f"room {room.room_id} does not need cleaning")
-    _record_transition(room, "cleaning", time_minutes, event_log, "cleaning_started")
-
-
-def finish_cleaning(
-    room: Room,
-    time_minutes: float,
-    event_log: list[dict[str, Any]],
-) -> None:
-    """Return a cleaned room to the available state."""
-    if room.state != "cleaning":
-        raise ValueError(f"room {room.room_id} is not being cleaned")
-    _record_transition(room, "available", time_minutes, event_log, "cleaning_finished")
-    room.cleaning_category = None
+def _validate_patient_id(patient_id: str) -> None:
+    if not patient_id.strip():
+        raise ValueError("patient_id must not be empty")

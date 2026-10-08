@@ -173,18 +173,38 @@ daily census (2024 calibration).
 - **Shared functions** in `src/events.py`: `check_in()`, `current_care()`,
   `check_out()`. Both the simulation and the API call these so they cannot
   drift apart.
-- **API demo** (`api.py`; FastAPI is decided and is being built on a separate
-  branch), pingable from a terminal:
+- **API demo** (`src/api/`, FastAPI), pingable from a terminal. The workflow
+  routes return hello-world acknowledgments while recording patient bed state
+  in a local JSON file:
 
   | Endpoint | Effect |
   |---|---|
-  | `POST /check-in` | Assign a bed; body has synthetic patient ID, care category, priority only |
-  | `POST /current-care` | "Needs more time" keeps the stay; "ready" moves to `discharge_pending` and alerts EVS |
+  | `POST /check-in` | Record the synthetic patient ID as occupying a bed |
+  | `PUT /current-care` | "Needs more time" keeps the stay; "ready" moves to `discharge_pending` |
   | `POST /check-out` | Room enters the cleaning queue |
+  | `GET /patients/{patient_id}/status` | Read the patient's current bed state |
 
-- **Constraints:** in-memory state only (no database), synthetic IDs only,
-  no Epic/HL7/FHIR. In a real deployment this would read existing admit and
-  discharge events from the EHR rather than add clicks for nurses.
+  Run locally with `uv run uvicorn src.api.main:app --reload`.
+
+  In PowerShell, exercise the workflow with `curl.exe` (use a new patient ID
+  when repeating the sequence):
+
+  ```powershell
+  curl.exe -X POST http://127.0.0.1:8000/check-in -H "Content-Type: application/json" -d '{"patient_id":"demo-001"}'
+  curl.exe -X PUT http://127.0.0.1:8000/current-care -H "Content-Type: application/json" -d '{"patient_id":"demo-001","update":"ready"}'
+  curl.exe -X POST http://127.0.0.1:8000/check-out -H "Content-Type: application/json" -d '{"patient_id":"demo-001"}'
+  curl.exe http://127.0.0.1:8000/patients/demo-001/status
+  ```
+
+  Use `"needs_more_time"` instead of `"ready"` to keep the patient
+  `occupied`.
+
+- **Constraints:** single-process local JSON state at
+  `data/api_state.json` (not a production multi-worker store), synthetic IDs
+  only, no Epic/HL7/FHIR. In a real deployment this would read existing admit
+  and discharge events from the EHR rather than add clicks for nurses.
+- **Alert delivery is not implemented in this skeleton:** `PUT /current-care`
+  records `discharge_pending` but does not yet notify EVS.
 - **In the simulation**, the stay lengths already include patients who
   need more time; `current_care()` only sets when the discharge order happens.
 - **Done when:** a terminal sequence moves one bed through every state and
@@ -319,6 +339,7 @@ In use today (Step 1):
 | pandas, NumPy, SciPy | Data generation and distributions |
 | Matplotlib | Notebook charts |
 | PyYAML | Reads [data/assumptions.yaml](data/assumptions.yaml) |
+| FastAPI, Uvicorn | Step 3 API skeleton and local ASGI server |
 
 [pyproject.toml](pyproject.toml) also installs `duckdb`, `ortools`, `plotly`,
 `simpy`, and `streamlit`, but no code uses them yet. Keep or remove them as
@@ -366,9 +387,9 @@ work is treated as final. Record the agreed choice here when made.
 │   └── occupied_beds_forecast_decisions.md    # Methodological decision records
 ├── src/
 │   ├── generators.py                          # Step 1 data generators
-│   ├── events.py                              # Planned (Step 2–3): shared bed state changes
+│   ├── api/                                   # Step 3 FastAPI app and route modules
+│   ├── events.py                              # Shared bed-state transitions
 │   └── sim.py                                 # Planned (Step 2): simulation
-├── api.py                                     # Planned (Step 3): API demo
 ├── app.py                                     # Planned (Step 4): dashboard
 └── notebooks/
     └── archive/                               # Historical generation notebooks
@@ -394,6 +415,18 @@ docker run --rm -v "${PWD}:/workspace" data-forge-2026 python -c "import src.gen
 ```
 
 Or in VS Code: **Dev Containers: Reopen in Container**.
+
+#### Start the API
+
+From the repository root, start the local API server:
+
+```powershell
+uv run uvicorn src.api.main:app --reload
+```
+
+Keep this terminal open while using the API. Open
+http://127.0.0.1:8000/docs to try the endpoints interactively; press `Ctrl+C`
+in the terminal to stop the server.
 
 ### 2. Updating Dependencies and the Container
 
@@ -444,3 +477,4 @@ Mary enforces:
 - Safe nurse-to-patient staffing ratio verification.
 - Reproducible stochastic modeling using explicit random seeds.
 - Transparent logging of all simulation assumptions in [data/assumptions.yaml](data/assumptions.yaml).
+F
