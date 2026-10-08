@@ -2,3 +2,4 @@
 .pyc
 __pycache__/
 notebooks/__marimo__/
+data/api_state.json

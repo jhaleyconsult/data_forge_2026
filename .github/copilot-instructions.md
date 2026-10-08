@@ -16,12 +16,12 @@ Whole hospital — every section with data (ICU, med-surg categories, delivery,
 newborn). ED and OR are not modeled until visit/case data exists.
 
 ## Stack
-In use: Python 3.13, uv, Docker/Dev Container, JupyterLab, pandas, NumPy,
-SciPy, Matplotlib, PyYAML.
+In use: Python 3.13, uv, FastAPI, Uvicorn, Docker/Dev Container, JupyterLab,
+pandas, NumPy, SciPy, Matplotlib, PyYAML.
 
 Open team decisions (see "Open Team Decisions" in `README.md`): simulation
-approach, how simulation results are stored, API framework (FastAPI
-proposed), dashboard tool, GitHub credentials in the container.
+approach, how simulation results are stored, dashboard tool, GitHub credentials
+in the container.
 - Do not pick a tool for an open decision on your own. Present options and
   tradeoffs and let the user decide; once decided, it is recorded in `README.md`.
 - New dependencies go through `uv add` (updates `pyproject.toml` and
@@ -54,9 +54,10 @@ proposed), dashboard tool, GitHub credentials in the container.
 data/assumptions.yaml
 notebooks/            # numbered per step, e.g. 02_baseline_simulation.ipynb
 src/generators.py     # Step 1
+src/week_sim.py       # Steps 2-3: shared check_in / current_care / check_out
 src/events.py         # Steps 2-3: shared check_in / current_care / check_out
+src/api/              # Step 3: FastAPI route modules and JSON state file
 src/sim.py            # Step 2
-api.py                # Step 3
 app.py                # Step 4 dashboard
 ```
 Notebooks are for exploration and validation; reusable logic belongs in
@@ -67,6 +68,7 @@ Notebooks are for exploration and validation; reusable logic belongs in
 - Multi-hospital or variable-hospital-size modeling.
 - LLM/agent layer for natural-language queries.
 - Postgres or any live multi-user state store.
+- Independently deployed microservices; the API is one modular FastAPI app.
 - Staff scheduling optimization beyond a simple ratio constraint.
 
 ## Code style

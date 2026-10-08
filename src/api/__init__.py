@@ -1,0 +1,1 @@
+"""Modular FastAPI application for the bed-turnover demo."""
